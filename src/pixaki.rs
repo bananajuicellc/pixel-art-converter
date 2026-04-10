@@ -52,3 +52,41 @@ pub struct Cel {
     pub identifier: String,
     pub frame: Vec<Vec<f64>>,
 }
+
+// --- Older Format (v2) ---
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "PascalCase")]
+pub struct DocumentV2 {
+    pub size: SizeV2,
+    pub symbols: Vec<SymbolV2>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "PascalCase")]
+pub struct SizeV2 {
+    pub width: f64,
+    pub height: f64,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "PascalCase")]
+pub struct SymbolV2 {
+    pub name: String,
+    pub frames: Vec<FrameV2>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "PascalCase")]
+pub struct FrameV2 {
+    pub duration: u32,
+    pub layers: Vec<LayerV2>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "PascalCase")]
+pub struct LayerV2 {
+    pub alpha: f64,
+    pub image_filename: String,
+    pub visible: bool,
+}

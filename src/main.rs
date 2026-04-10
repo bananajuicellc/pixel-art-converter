@@ -1,13 +1,10 @@
+use aseprite::{AsepriteFile, ColorMode, Pixels, BlendMode, LayerOptions};
 use clap::Parser;
-use pixaki_converter::aseprite::{
-    AsepriteHeader, BlendMode, CelChunk, CelType, Chunk, ChunkType, FrameHeader, LayerChunk,
-    LayerFlags, LayerType,
-};
-use pixaki_converter::pixaki::Document;
+use pixaki_converter::pixaki::{Document, DocumentV2};
 use std::collections::HashMap;
 use std::fs;
-use std::fs::File;
-use std::io::{BufWriter, Seek, SeekFrom};
+use std::io::{Result, Error, ErrorKind};
+use std::path::Path;
 
 /// A simple program to convert Pixaki files to Aseprite files.
 #[derive(Parser, Debug)]
@@ -42,11 +39,21 @@ fn map_blend_mode(s: &str) -> BlendMode {
     }
 }
 
-fn main() -> std::io::Result<()> {
+fn main() -> Result<()> {
     let cli = Cli::parse();
 
+    if cli.pixaki_path.join("document.json").exists() {
+        handle_modern_format(&cli.pixaki_path, &cli.aseprite_path)
+    } else if cli.pixaki_path.join("DocumentInfo.plist").exists() {
+        handle_legacy_format(&cli.pixaki_path, &cli.aseprite_path)
+    } else {
+        Err(Error::new(ErrorKind::NotFound, "No document.json or DocumentInfo.plist found in the pixaki directory"))
+    }
+}
+
+fn handle_modern_format(pixaki_path: &Path, aseprite_path: &Path) -> Result<()> {
     // 1. Read and parse document.json
-    let document_path = cli.pixaki_path.join("document.json");
+    let document_path = pixaki_path.join("document.json");
     let json_str = fs::read_to_string(document_path)?;
     let document: Document =
         serde_json::from_str(&json_str).expect("Unable to parse document.json");
@@ -58,32 +65,27 @@ fn main() -> std::io::Result<()> {
     let layers = &sprite.layers;
     let num_frames = sprite.duration;
 
-    // 3. Set up file writer
-    let file = File::create(&cli.aseprite_path)?;
-    let mut writer = BufWriter::new(file);
+    // 3. Create Aseprite file
+    let mut aseprite = AsepriteFile::new(width, height, ColorMode::Rgba);
 
-    // 4. Write Aseprite Header (with dummy file size)
-    let mut header = AsepriteHeader::new(width, height, num_frames as u16);
-    header.write(&mut writer)?;
-
-    // 5. Write Layer Chunks (once at the beginning)
+    // 4. Add Layers
+    let mut layer_handles = Vec::new();
     for layer in layers {
-        let layer_chunk = LayerChunk {
-            flags: if layer.is_visible {
-                LayerFlags::VISIBLE | LayerFlags::EDITABLE
-            } else {
-                LayerFlags::EDITABLE
-            },
-            layer_type: LayerType::Normal,
-            child_level: 0,
-            default_width: 0,
-            default_height: 0,
-            blend_mode: map_blend_mode(layer.blend_mode.as_deref().unwrap_or("normal")),
+        let opts = LayerOptions {
             opacity: (layer.opacity * 255.0) as u8,
-            name: layer.name.clone(),
+            blend_mode: map_blend_mode(layer.blend_mode.as_deref().unwrap_or("normal")),
+            visible: layer.is_visible,
+            ..Default::default()
         };
-        let chunk = Chunk::new(ChunkType::Layer, layer_chunk);
-        chunk.write(&mut writer)?;
+        let handle = aseprite.add_layer_with(&layer.name, opts);
+        layer_handles.push(handle);
+    }
+
+    // 5. Add Frames
+    let mut frame_handles = Vec::new();
+    for _ in 0..num_frames {
+        let handle = aseprite.add_frame(100);
+        frame_handles.push(handle);
     }
 
     // Create a map of cels for easy lookup
@@ -94,17 +96,17 @@ fn main() -> std::io::Result<()> {
         .collect();
 
     // Determine the image directory
-    let image_dir = if cli.pixaki_path.join("images").join("drawings").is_dir() {
-        cli.pixaki_path.join("images").join("drawings")
+    let image_dir = if pixaki_path.join("images").join("drawings").is_dir() {
+        pixaki_path.join("images").join("drawings")
     } else {
-        cli.pixaki_path
+        pixaki_path.to_path_buf()
     };
 
-    // 6. Loop through frames and write FrameHeader and CelChunks
+    // 6. Loop through frames and layers to set cels
     for frame_index in 0..num_frames {
-        let mut cel_chunks_for_frame = Vec::new();
-
+        let frame_handle = frame_handles[frame_index as usize];
         for (layer_index, layer) in layers.iter().enumerate() {
+            let layer_handle = layer_handles[layer_index];
             for clip in &layer.clips {
                 let in_range = match &clip.range {
                     Some(range) => frame_index >= range.start && frame_index < range.end,
@@ -118,19 +120,13 @@ fn main() -> std::io::Result<()> {
                         if let Ok(img) = image::open(&image_path) {
                             let rgba_img = img.to_rgba8();
                             let (img_width, img_height) = rgba_img.dimensions();
+                            let x = cel_info.frame[0][0] as i16;
+                            let y = cel_info.frame[0][1] as i16;
 
-                            let cel_chunk = CelChunk {
-                                layer_index: layer_index as u16,
-                                x: cel_info.frame[0][0] as i16,
-                                y: cel_info.frame[0][1] as i16,
-                                opacity: 255,
-                                cel_type: CelType::Compressed,
-                                z_index: layer_index as i16,
-                                width: img_width as u16,
-                                height: img_height as u16,
-                                data: rgba_img.into_raw(),
-                            };
-                            cel_chunks_for_frame.push(cel_chunk);
+                            let pixels = Pixels::new(rgba_img.into_raw(), img_width as u16, img_height as u16, ColorMode::Rgba)
+                                .map_err(|e| Error::new(ErrorKind::Other, format!("Failed to create Pixels: {}", e)))?;
+                            aseprite.set_cel(layer_handle, frame_handle, pixels, x, y)
+                                .map_err(|e| Error::new(ErrorKind::Other, format!("Failed to set cel: {}", e)))?;
                         } else {
                             eprintln!("Failed to load image: {:?}", image_path);
                         }
@@ -138,33 +134,91 @@ fn main() -> std::io::Result<()> {
                 }
             }
         }
-
-        // Write FrameHeader
-        let frame_header = FrameHeader::new(cel_chunks_for_frame.len() as u16, 100);
-        frame_header.write(&mut writer)?;
-
-        // Write CelChunks for the current frame
-        for cel_chunk in cel_chunks_for_frame {
-            let chunk = Chunk::new(ChunkType::Cel, cel_chunk);
-            chunk.write(&mut writer)?;
-        }
     }
-    
-    // 7. Update file size in header
-    let file_size = writer.stream_position()?;
-    header.file_size = file_size as u32;
-    writer.seek(SeekFrom::Start(0))?;
-    header.write(&mut writer)?;
 
+    // 7. Write the file
+    let mut buffer = Vec::new();
+    aseprite.write_to(&mut buffer)
+        .map_err(|e| Error::new(ErrorKind::Other, format!("Failed to write Aseprite file: {}", e)))?;
+    fs::write(aseprite_path, buffer)?;
 
     println!(
         "Successfully wrote Aseprite file to {:?}",
-        cli.aseprite_path
+        aseprite_path
     );
 
     Ok(())
 }
 
+fn handle_legacy_format(pixaki_path: &Path, aseprite_path: &Path) -> Result<()> {
+    // 1. Read and parse DocumentInfo.plist
+    let plist_path = pixaki_path.join("DocumentInfo.plist");
+    let document: DocumentV2 = plist::from_file(plist_path)
+        .map_err(|e| Error::new(ErrorKind::Other, format!("Failed to parse DocumentInfo.plist: {}", e)))?;
 
+    // 2. Extract data
+    let width = document.size.width as u16;
+    let height = document.size.height as u16;
+    let symbols = &document.symbols;
+    
+    // 3. Create Aseprite file
+    let mut aseprite = AsepriteFile::new(width, height, ColorMode::Rgba);
 
+    // 4. Create layers and frames
+    if let Some(symbol) = symbols.get(0) {
+        // Add layers based on the first frame
+        let mut layer_handles = Vec::new();
+        if let Some(first_frame) = symbol.frames.get(0) {
+            for (i, layer) in first_frame.layers.iter().enumerate() {
+                let opts = LayerOptions {
+                    opacity: (layer.alpha * 255.0) as u8,
+                    visible: layer.visible,
+                    ..Default::default()
+                };
+                let handle = aseprite.add_layer_with(&format!("Layer {}", i), opts);
+                layer_handles.push(handle);
+            }
+        }
 
+        // Add frames
+        let mut frame_handles = Vec::new();
+        for _ in &symbol.frames {
+            let handle = aseprite.add_frame(100);
+            frame_handles.push(handle);
+        }
+
+        // Set cels
+        for (frame_index, frame_v2) in symbol.frames.iter().enumerate() {
+            let frame_handle = frame_handles[frame_index];
+            for (layer_index, layer_v2) in frame_v2.layers.iter().enumerate() {
+                if layer_index < layer_handles.len() {
+                    let layer_handle = layer_handles[layer_index];
+                    let image_path = pixaki_path.join(&layer_v2.image_filename);
+                    
+                    if let Ok(img) = image::open(&image_path) {
+                        let rgba_img = img.to_rgba8();
+                        let (img_width, img_height) = rgba_img.dimensions();
+                        
+                        let pixels = Pixels::new(rgba_img.into_raw(), img_width as u16, img_height as u16, ColorMode::Rgba)
+                            .map_err(|e| Error::new(ErrorKind::Other, format!("Failed to create Pixels: {}", e)))?;
+                        aseprite.set_cel(layer_handle, frame_handle, pixels, 0, 0)
+                            .map_err(|e| Error::new(ErrorKind::Other, format!("Failed to set cel: {}", e)))?;
+                    }
+                }
+            }
+        }
+    }
+
+    // 5. Write the file
+    let mut buffer = Vec::new();
+    aseprite.write_to(&mut buffer)
+        .map_err(|e| Error::new(ErrorKind::Other, format!("Failed to write Aseprite file: {}", e)))?;
+    fs::write(aseprite_path, buffer)?;
+
+    println!(
+        "Successfully wrote Aseprite file to {:?}",
+        aseprite_path
+    );
+
+    Ok(())
+}
