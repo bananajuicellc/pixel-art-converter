@@ -28,8 +28,8 @@ pub struct Layer {
     #[serde(rename = "isVisible")]
     pub is_visible: bool,
     pub opacity: f64,
-    #[serde(rename = "blendMode")]
-    pub blend_mode: String,
+    #[serde(rename = "blendMode", default)]
+    pub blend_mode: Option<String>,
     pub clips: Vec<Clip>,
 }
 

@@ -14,11 +14,9 @@ use std::io::{BufWriter, Seek, SeekFrom};
 #[command(version, about, long_about = None)]
 struct Cli {
     /// The path to the .pixaki directory
-    #[arg(short, long)]
     pixaki_path: std::path::PathBuf,
 
     /// The path to the output .aseprite file
-    #[arg(short, long)]
     aseprite_path: std::path::PathBuf,
 }
 
@@ -80,7 +78,7 @@ fn main() -> std::io::Result<()> {
             child_level: 0,
             default_width: 0,
             default_height: 0,
-            blend_mode: map_blend_mode(&layer.blend_mode),
+            blend_mode: map_blend_mode(layer.blend_mode.as_deref().unwrap_or("normal")),
             opacity: (layer.opacity * 255.0) as u8,
             name: layer.name.clone(),
         };
