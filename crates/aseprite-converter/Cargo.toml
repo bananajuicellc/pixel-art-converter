@@ -1,0 +1,9 @@
+[package]
+name = "aseprite-converter"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+pixel-art = { path = "../pixel-art" }
+aseprite-io = { version = "0.1", features = ["image"] }
+anyhow = "1.0"

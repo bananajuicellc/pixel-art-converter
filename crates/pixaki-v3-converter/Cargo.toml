@@ -1,0 +1,10 @@
+[package]
+name = "pixaki-v3-converter"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+pixel-art = { path = "../pixel-art" }
+pixaki-v3 = { path = "../pixaki-v3" }
+image = "0.25.1"
+anyhow = "1.0"

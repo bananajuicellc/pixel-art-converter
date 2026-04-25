@@ -53,40 +53,33 @@ pub struct Cel {
     pub frame: Vec<Vec<f64>>,
 }
 
-// --- Older Format (v2) ---
+#[cfg(test)]
+mod tests {
+    use super::*;
 
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "PascalCase")]
-pub struct DocumentV2 {
-    pub size: SizeV2,
-    pub symbols: Vec<SymbolV2>,
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "PascalCase")]
-pub struct SizeV2 {
-    pub width: f64,
-    pub height: f64,
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "PascalCase")]
-pub struct SymbolV2 {
-    pub name: String,
-    pub frames: Vec<FrameV2>,
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "PascalCase")]
-pub struct FrameV2 {
-    pub duration: u32,
-    pub layers: Vec<LayerV2>,
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "PascalCase")]
-pub struct LayerV2 {
-    pub alpha: f64,
-    pub image_filename: String,
-    pub visible: bool,
+    #[test]
+    fn test_v3_deserialization() {
+        let json_data = r#"
+        {
+          "sprites": [
+            {
+              "size": { "width": 32, "height": 32 },
+              "duration": 1,
+              "layers": [
+                {
+                  "name": "Layer 1",
+                  "isVisible": true,
+                  "opacity": 1.0,
+                  "clips": []
+                }
+              ],
+              "cels": []
+            }
+          ]
+        }
+        "#;
+        let doc: Document = serde_json::from_str(json_data).unwrap();
+        assert_eq!(doc.sprites[0].size.width, 32.0);
+        assert_eq!(doc.sprites[0].layers[0].name, "Layer 1");
+    }
 }

@@ -1,0 +1,17 @@
+[package]
+name = "pixaki-converter"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+clap = { version = "4.5.4", features = ["derive"] }
+pixel-art = { path = "../pixel-art" }
+pixaki-v2 = { path = "../pixaki-v2" }
+pixaki-v3 = { path = "../pixaki-v3" }
+pixaki-v2-converter = { path = "../pixaki-v2-converter" }
+pixaki-v3-converter = { path = "../pixaki-v3-converter" }
+aseprite-converter = { path = "../aseprite-converter" }
+serde_json = "1.0"
+plist = "1.6"
+anyhow = "1.0"
+aseprite = { package = "aseprite-io", version = "0.1" }
