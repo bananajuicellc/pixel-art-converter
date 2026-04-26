@@ -29,7 +29,10 @@ impl Document {
         frame_cels.sort_by_key(|c| c.layer_index);
 
         for cel in frame_cels {
-            let layer = &self.layers[cel.layer_index];
+            let layer = match self.layers.get(cel.layer_index) {
+                Some(l) => l,
+                None => continue,
+            };
             if !layer.visible {
                 continue;
             }
