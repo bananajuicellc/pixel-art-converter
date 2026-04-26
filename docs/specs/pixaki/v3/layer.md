@@ -17,5 +17,5 @@ A Clip maps a [Cel](cel.md) to a specific frame range on the timeline.
 | Property | Type | Description |
 | :--- | :--- | :--- |
 | `itemIdentifier` | String | The identifier of the [Cel](cel.md) to display. |
-| `range` | Object | `{ start, end }` frame indices (start is inclusive, end is exclusive). |
+| `range` | Object | (Optional) `{ start, end }` frame indices (start is inclusive, end is exclusive). |
 | `identifier` | String | Unique UUID for the clip. |
