@@ -86,8 +86,8 @@ impl From<Image> for image::RgbaImage {
 impl From<image::RgbaImage> for Image {
     fn from(img: image::RgbaImage) -> Self {
         Self {
-            width: img.width() as u16,
-            height: img.height() as u16,
+            width: img.width().try_into().expect("image width exceeds u16"),
+            height: img.height().try_into().expect("image height exceeds u16"),
             rgba: img.into_raw(),
         }
     }
