@@ -10,8 +10,8 @@ struct Cli {
     /// The path to the .pixaki directory or .psp file
     input_path: std::path::PathBuf,
 
-    /// The path to the output .aseprite file
-    aseprite_path: std::path::PathBuf,
+    /// The path to the output .aseprite or .png file
+    output_path: std::path::PathBuf,
 }
 
 fn main() -> Result<()> {
@@ -27,17 +27,41 @@ fn main() -> Result<()> {
         return Err(anyhow!("No valid .psp file or document.json/DocumentInfo.plist found in the given path"));
     };
 
-    let aseprite_file = aseprite_converter::convert(doc)?;
-    
-    let mut buffer = Vec::new();
-    aseprite_file.write_to(&mut buffer)
-        .map_err(|e| anyhow!("Failed to write Aseprite file: {}", e))?;
-    fs::write(&cli.aseprite_path, buffer)?;
+    let ext = cli.output_path.extension()
+        .and_then(|e| e.to_str())
+        .unwrap_or("")
+        .to_lowercase();
 
-    println!(
-        "Successfully wrote Aseprite file to {:?}",
-        cli.aseprite_path
-    );
+    if ext == "ase" || ext == "aseprite" {
+        let aseprite_file = aseprite_converter::convert(doc)?;
+
+        let mut buffer = Vec::new();
+        aseprite_file.write_to(&mut buffer)
+            .map_err(|e| anyhow!("Failed to write Aseprite file: {}", e))?;
+        fs::write(&cli.output_path, buffer)?;
+
+        println!(
+            "Successfully wrote Aseprite file to {:?}",
+            cli.output_path
+        );
+    } else if ext == "png" {
+        #[cfg(feature = "image")]
+        {
+            let img = doc.render();
+            img.save(&cli.output_path)
+                .context("Failed to write PNG file")?;
+            println!(
+                "Successfully wrote PNG file to {:?}",
+                cli.output_path
+            );
+        }
+        #[cfg(not(feature = "image"))]
+        {
+            return Err(anyhow!("PNG export requires the 'image' feature to be enabled"));
+        }
+    } else {
+        return Err(anyhow!("Unsupported output format: '{}'. Supported formats are .ase, .aseprite, and .png", ext));
+    }
 
     Ok(())
 }

@@ -49,6 +49,29 @@ fn test_fox_walk_2010s() {
 
 #[cfg(feature = "image")]
 #[test]
+fn test_cli_png_export_fox_smile() {
+    let pixaki_path = PathBuf::from("tests/data/fox_smile.pixaki");
+    let output_path = PathBuf::from("tests/data/fox_smile.png");
+
+    // Ensure output doesn't exist
+    if output_path.exists() {
+        fs::remove_file(&output_path).unwrap();
+    }
+
+    let status = Command::new("cargo")
+        .args(["run", "--features", "image", "--", pixaki_path.to_str().unwrap(), output_path.to_str().unwrap()])
+        .status()
+        .expect("Failed to execute command");
+
+    assert!(status.success());
+    assert!(output_path.exists());
+
+    // Optional: Clean up
+    fs::remove_file(&output_path).unwrap();
+}
+
+#[cfg(feature = "image")]
+#[test]
 fn test_image_export_fox_smile() {
     let pixaki_path = PathBuf::from("tests/data/fox_smile.pixaki");
     let document_path = pixaki_path.join("document.json");
