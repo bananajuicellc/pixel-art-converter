@@ -3,8 +3,13 @@ use serde::Deserialize;
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "PascalCase")]
 pub struct Document {
+    pub version: Option<f64>,
     pub size: Size,
+    pub animation_speed: Option<f64>,
     pub symbols: Vec<Symbol>,
+    pub selected_symbol_index: Option<i32>,
+    pub color_presets: Option<plist::Dictionary>,
+    pub grid_settings: Option<plist::Dictionary>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -19,6 +24,7 @@ pub struct Size {
 pub struct Symbol {
     pub name: String,
     pub frames: Vec<Frame>,
+    pub selected_frame_index: Option<i32>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -26,6 +32,8 @@ pub struct Symbol {
 pub struct Frame {
     pub duration: u32,
     pub layers: Vec<Layer>,
+    pub selected_layer_index: Option<i32>,
+    pub hidden: Option<bool>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -34,6 +42,8 @@ pub struct Layer {
     pub alpha: f64,
     pub image_filename: String,
     pub visible: bool,
+    pub reference: Option<bool>,
+    pub size: Option<Size>,
 }
 
 #[cfg(test)]

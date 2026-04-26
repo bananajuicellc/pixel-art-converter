@@ -4,6 +4,10 @@ use serde::Deserialize;
 #[serde(rename_all = "camelCase")]
 pub struct Document {
     pub sprites: Vec<Sprite>,
+    pub palette: Option<serde_json::Value>,
+    pub grid_settings: Option<serde_json::Value>,
+    pub animation_speed: Option<f64>,
+    pub primary_sprite_identifier: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -19,6 +23,7 @@ pub struct Sprite {
     pub cels: Vec<Cel>,
     pub size: Size,
     pub duration: u32,
+    pub identifier: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -30,6 +35,9 @@ pub struct Layer {
     pub opacity: f64,
     #[serde(rename = "blendMode", default)]
     pub blend_mode: Option<String>,
+    #[serde(rename = "type")]
+    pub type_name: Option<String>,
+    pub identifier: Option<String>,
     pub clips: Vec<Clip>,
 }
 
@@ -38,6 +46,7 @@ pub struct Layer {
 pub struct Clip {
     pub item_identifier: String,
     pub range: Option<Range>,
+    pub identifier: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -51,6 +60,13 @@ pub struct Range {
 pub struct Cel {
     pub identifier: String,
     pub frame: Vec<Vec<f64>>,
+    #[serde(rename = "type")]
+    pub type_name: Option<String>,
+    pub opacity: Option<f64>,
+    #[serde(rename = "isVisible")]
+    pub is_visible: Option<bool>,
+    pub requires_trim: Option<bool>,
+    pub container_size: Option<Vec<f64>>,
 }
 
 #[cfg(test)]
