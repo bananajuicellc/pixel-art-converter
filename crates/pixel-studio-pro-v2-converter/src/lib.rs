@@ -1,7 +1,29 @@
 use anyhow::{anyhow, Result};
 use base64::{engine::general_purpose::STANDARD as b64, Engine};
+use image::{Rgba, RgbaImage};
 use pixel_art::{BlendMode, Cel, Document, Frame, Image, Layer};
 use pixel_studio_pro_v2::{self, History};
+use serde::Deserialize;
+
+#[derive(Deserialize, Debug)]
+#[serde(rename_all = "PascalCase")]
+struct MetaData {
+    rect: Option<RectData>,
+    pixels: Option<String>,
+}
+
+#[derive(Deserialize, Debug)]
+#[serde(rename_all = "PascalCase")]
+struct RectData {
+    from: PointData,
+}
+
+#[derive(Deserialize, Debug)]
+#[serde(rename_all = "PascalCase")]
+struct PointData {
+    x: i32,
+    y: i32,
+}
 
 pub fn convert(doc: pixel_studio_pro_v2::Document) -> Result<Document> {
     let mut layers: Vec<Layer> = Vec::new();
@@ -27,6 +49,9 @@ pub fn convert(doc: pixel_studio_pro_v2::Document) -> Result<Document> {
 
     // Store the last cel index for each layer to allow O(1) linked cel lookup
     let mut last_cel_per_layer: Vec<Option<usize>> = vec![None; layers.len()];
+
+    let doc_width = doc.width as u32;
+    let doc_height = doc.height as u32;
 
     // Process frames and cels
     for (frame_index, psp_frame) in clip.frames.iter().enumerate() {
@@ -60,15 +85,97 @@ pub fn convert(doc: pixel_studio_pro_v2::Document) -> Result<Document> {
                 let history = serde_json::from_str::<History>(history_str)
                     .map_err(|e| anyhow!("Failed to parse history JSON for layer {}: {}", layer_index, e))?;
 
-                if let Some(source_b64) = history.source {
-                    let img_data = b64.decode(&source_b64)
-                        .map_err(|e| anyhow!("Failed to decode base64 source for layer {}: {}", layer_index, e))?;
+                let mut final_img = RgbaImage::new(doc_width, doc_height);
+                let mut has_data = false;
 
-                    let img = image::load_from_memory(&img_data)
-                        .map_err(|e| anyhow!("Failed to load image from memory for layer {}: {}", layer_index, e))?;
+                // Replay actions up to history index
+                let history_index = history.index as usize;
+                for action in history.actions.iter().take(history_index) {
+                    if action.tool == 20 || action.tool == 21 {
+                        // Import/Paste
+                        if let Some(meta_str) = &action.meta {
+                            if let Ok(meta) = serde_json::from_str::<MetaData>(meta_str) {
+                                if let (Some(pixels_b64), Some(rect)) = (meta.pixels, meta.rect) {
+                                    if let Ok(img_data) = b64.decode(&pixels_b64) {
+                                        if let Ok(img) = image::load_from_memory(&img_data) {
+                                            let rgba_patch = img.to_rgba8();
+                                            let start_x = rect.from.x;
+                                            let start_y = rect.from.y;
 
-                    let rgba_img = img.to_rgba8();
-                    let (img_width, img_height) = rgba_img.dimensions();
+                                            for y in 0..rgba_patch.height() {
+                                                for x in 0..rgba_patch.width() {
+                                                    let dst_x = start_x + (x as i32);
+                                                    let dst_y = start_y + (y as i32);
+
+                                                    if dst_x >= 0
+                                                        && dst_y >= 0
+                                                        && (dst_x as u32) < doc_width
+                                                        && (dst_y as u32) < doc_height
+                                                    {
+                                                        let p = rgba_patch.get_pixel(x, y);
+                                                        // over blend or just copy if destination is transparent
+                                                        if p[3] > 0 {
+                                                            final_img.put_pixel(dst_x as u32, dst_y as u32, *p);
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                            has_data = true;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    } else if action.tool == 0 || action.tool == 3 {
+                        // Pen
+                        let pos_bytes = b64.decode(&action.positions).unwrap_or_default();
+                        let col_bytes = b64.decode(&action.colors).unwrap_or_default();
+
+                        if col_bytes.len() >= 4 {
+                            let color = Rgba([col_bytes[0], col_bytes[1], col_bytes[2], col_bytes[3]]);
+                            for j in (0..pos_bytes.len()).step_by(4) {
+                                if j + 3 < pos_bytes.len() {
+                                    let px = u16::from_le_bytes([pos_bytes[j], pos_bytes[j + 1]]);
+                                    let py = u16::from_le_bytes([pos_bytes[j + 2], pos_bytes[j + 3]]);
+
+                                    if (px as u32) < doc_width && (py as u32) < doc_height {
+                                        final_img.put_pixel(px as u32, py as u32, color);
+                                        has_data = true;
+                                    }
+                                }
+                            }
+                        }
+                    } else if action.tool == 1 {
+                        // Eraser
+                        let pos_bytes = b64.decode(&action.positions).unwrap_or_default();
+                        for j in (0..pos_bytes.len()).step_by(4) {
+                            if j + 3 < pos_bytes.len() {
+                                let px = u16::from_le_bytes([pos_bytes[j], pos_bytes[j + 1]]);
+                                let py = u16::from_le_bytes([pos_bytes[j + 2], pos_bytes[j + 3]]);
+
+                                if (px as u32) < doc_width && (py as u32) < doc_height {
+                                    final_img.put_pixel(px as u32, py as u32, Rgba([0, 0, 0, 0]));
+                                    has_data = true;
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // If no valid actions painted anything, attempt fallback to `_source`
+                if !has_data {
+                    if let Some(source_b64) = history.source {
+                        if let Ok(img_data) = b64.decode(&source_b64) {
+                            if let Ok(img) = image::load_from_memory(&img_data) {
+                                final_img = img.to_rgba8();
+                                has_data = true;
+                            }
+                        }
+                    }
+                }
+
+                if has_data {
+                    let (img_width, img_height) = final_img.dimensions();
 
                     let cel = Cel {
                         frame_index,
@@ -78,7 +185,7 @@ pub fn convert(doc: pixel_studio_pro_v2::Document) -> Result<Document> {
                         image: Image {
                             width: u16::try_from(img_width).unwrap_or(u16::MAX),
                             height: u16::try_from(img_height).unwrap_or(u16::MAX),
-                            rgba: rgba_img.into_raw(),
+                            rgba: final_img.into_raw(),
                         },
                     };
 
