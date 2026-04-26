@@ -1,6 +1,6 @@
 use serde::Deserialize;
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Default)]
 #[serde(rename_all = "PascalCase")]
 pub struct Document {
     pub version: Option<f64>,
@@ -12,14 +12,14 @@ pub struct Document {
     pub grid_settings: Option<plist::Dictionary>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Default)]
 #[serde(rename_all = "PascalCase")]
 pub struct Size {
     pub width: f64,
     pub height: f64,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Default)]
 #[serde(rename_all = "PascalCase")]
 pub struct Symbol {
     pub name: String,
@@ -27,7 +27,7 @@ pub struct Symbol {
     pub selected_frame_index: Option<i32>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Default)]
 #[serde(rename_all = "PascalCase")]
 pub struct Frame {
     pub duration: u32,
@@ -36,7 +36,7 @@ pub struct Frame {
     pub hidden: Option<bool>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Default)]
 #[serde(rename_all = "PascalCase")]
 pub struct Layer {
     pub alpha: f64,

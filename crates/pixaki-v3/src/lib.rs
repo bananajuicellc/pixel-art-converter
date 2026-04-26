@@ -1,6 +1,6 @@
 use serde::Deserialize;
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct Document {
     pub sprites: Vec<Sprite>,
@@ -10,13 +10,13 @@ pub struct Document {
     pub primary_sprite_identifier: Option<String>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Default)]
 pub struct Size {
     pub width: f64,
     pub height: f64,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct Sprite {
     pub layers: Vec<Layer>,
@@ -26,7 +26,7 @@ pub struct Sprite {
     pub identifier: Option<String>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct Layer {
     pub name: String,
@@ -41,7 +41,7 @@ pub struct Layer {
     pub clips: Vec<Clip>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct Clip {
     pub item_identifier: String,
@@ -49,13 +49,13 @@ pub struct Clip {
     pub identifier: Option<String>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Default)]
 pub struct Range {
     pub start: u32,
     pub end: u32,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct Cel {
     pub identifier: String,

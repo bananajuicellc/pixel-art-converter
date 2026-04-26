@@ -118,25 +118,19 @@ mod tests {
                 pixaki_v3::Sprite {
                     size: pixaki_v3::Size { width: 32.0, height: 32.0 },
                     duration: 2,
-                    identifier: None,
                     layers: vec![
                         pixaki_v3::Layer {
                             name: "Layer 1".to_string(),
                             is_visible: true,
                             opacity: 1.0,
                             blend_mode: Some("normal".to_string()),
-                            type_name: None,
-                            identifier: None,
-                            clips: vec![]
+                            ..Default::default()
                         }
                     ],
-                    cels: vec![]
+                    ..Default::default()
                 }
             ],
-            palette: None,
-            grid_settings: None,
-            animation_speed: None,
-            primary_sprite_identifier: None,
+            ..Default::default()
         };
 
         let result = convert(doc_v3, Path::new(".")).unwrap();

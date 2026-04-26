@@ -73,33 +73,27 @@ mod tests {
     fn test_v2_conversion_basic() {
         let doc_v2 = pixaki_v2::Document {
             size: pixaki_v2::Size { width: 16.0, height: 16.0 },
-            version: None,
-            animation_speed: None,
-            selected_symbol_index: None,
-            color_presets: None,
-            grid_settings: None,
             symbols: vec![
                 pixaki_v2::Symbol {
                     name: "Symbol 1".to_string(),
-                    selected_frame_index: None,
                     frames: vec![
                         pixaki_v2::Frame {
                             duration: 100,
-                            selected_layer_index: None,
-                            hidden: None,
                             layers: vec![
                                 pixaki_v2::Layer {
                                     alpha: 1.0,
                                     image_filename: "non_existent.png".to_string(),
                                     visible: true,
-                                    reference: None,
-                                    size: None,
+                                    ..Default::default()
                                 }
-                            ]
+                            ],
+                            ..Default::default()
                         }
-                    ]
+                    ],
+                    ..Default::default()
                 }
-            ]
+            ],
+            ..Default::default()
         };
 
         let result = convert(doc_v2, Path::new(".")).unwrap();
