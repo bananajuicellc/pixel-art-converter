@@ -24,10 +24,16 @@ An individual drawing command.
 | `Invalid` | Boolean | Whether the action is considered invalid. |
 
 ### Tool-Specific Metadata (Meta)
-For certain tools like `Tool: 20`, the `Meta` field contains a JSON string with:
-- `Rect`: The destination rectangle `{From: {X, Y}, To: {X, Y}}`.
-- `Pixels`: Base64 encoded PNG data for the specific region.
-- `RectSource`: The source rectangle in the original image.
+The `Meta` field contains a JSON string that varies depending on the `Tool` ID:
+
+- **Tool 10 (Move):** Contains `{ "From": { "X", "Y" }, "To": { "X", "Y" } }`.
+- **Tool 20 (Rectangle/Import):** Contains:
+  - `Rect`: The destination rectangle `{From: {X, Y}, To: {X, Y}}`.
+  - `Pixels`: Base64 encoded PNG data for the specific region.
+  - `RectSource`: The source rectangle in the original image.
 
 ### Encoding
-`Positions` and `Colors` use a custom Base64 binary encoding to store coordinate and color arrays efficiently.
+`Positions` and `Colors` use a custom Base64 binary encoding to store coordinate and color arrays efficiently:
+
+- `Positions`: Decodes into a sequence of 16-bit little-endian unsigned integers. Each pair of integers represents an `(X, Y)` coordinate.
+- `Colors`: Decodes into a sequence of 4-byte RGBA color values (1 byte each for Red, Green, Blue, and Alpha).
