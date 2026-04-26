@@ -10,3 +10,4 @@ A Cel represents a unique drawing (image file).
 | `opacity` | Number | Instance-specific opacity. |
 | `isVisible` | Boolean | Instance-specific visibility. |
 | `requiresTrim` | Boolean | Metadata for Pixaki's renderer. |
+| `containerSize` | Array or null | Optional container size metadata. |

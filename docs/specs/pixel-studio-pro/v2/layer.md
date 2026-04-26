@@ -12,7 +12,8 @@ A Layer is an individual drawing surface within a frame.
 | `Linked` | Boolean | Whether the layer content is linked to the previous frame. |
 | `Outline` | Integer | Outline setting. |
 | `Lock` | Integer | Lock status. |
-| `Sx`, `Sy` | Integer | Offset/Translation of the layer. |
+| `Sx` | Integer | X Offset/Translation of the layer. |
+| `Sy` | Integer | Y Offset/Translation of the layer. |
 | `Scripts` | Array | Layer-specific scripts. |
 | `Version` | Integer | Layer data version. |
 | `_historyJson` | String | (Optional) A JSON string containing drawing [Actions](history.md). |

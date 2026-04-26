@@ -6,6 +6,6 @@ Contains the actual layers and frame data.
 | :--- | :--- | :--- |
 | `layers` | Array | A collection of [Layer](layer.md) objects. |
 | `cels` | Array | A collection of [Cel](cel.md) objects. |
-| `size` | Object | `{ width, height }` of the canvas. |
+| `size` | Array | `[width, height]` of the canvas. |
 | `duration` | Integer | Total number of frames in the animation. |
 | `identifier` | String | Unique UUID for the sprite. |
