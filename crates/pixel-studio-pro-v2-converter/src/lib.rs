@@ -4,9 +4,9 @@ use pixel_art::{BlendMode, Cel, Document, Frame, Image, Layer};
 use pixel_studio_pro_v2::{self, History};
 
 pub fn convert(doc: pixel_studio_pro_v2::Document) -> Result<Document> {
-    let mut layers = Vec::new();
-    let mut frames = Vec::new();
-    let mut cels = Vec::new();
+    let mut layers: Vec<Layer> = Vec::new();
+    let mut frames: Vec<Frame> = Vec::new();
+    let mut cels: Vec<Cel> = Vec::new();
 
     let clip = doc
         .clips
@@ -25,6 +25,9 @@ pub fn convert(doc: pixel_studio_pro_v2::Document) -> Result<Document> {
         }
     }
 
+    // Store the last cel index for each layer to allow O(1) linked cel lookup
+    let mut last_cel_per_layer: Vec<Option<usize>> = vec![None; layers.len()];
+
     // Process frames and cels
     for (frame_index, psp_frame) in clip.frames.iter().enumerate() {
         frames.push(Frame {
@@ -37,22 +40,21 @@ pub fn convert(doc: pixel_studio_pro_v2::Document) -> Result<Document> {
             }
 
             if psp_layer.linked {
-                // Find the cel for the same layer in the previous frame
-                if frame_index > 0 {
-                    let new_cel = cels
-                        .iter()
-                        .find(|c: &&Cel| c.frame_index == frame_index - 1 && c.layer_index == layer_index)
-                        .map(|prev_cel| Cel {
-                            frame_index,
-                            layer_index,
-                            x: prev_cel.x,
-                            y: prev_cel.y,
-                            image: prev_cel.image.clone(),
-                        });
+                // Find the cel for the same layer in a previous frame
+                if let Some(last_cel_idx) = last_cel_per_layer[layer_index] {
+                    let prev_x = cels[last_cel_idx].x;
+                    let prev_y = cels[last_cel_idx].y;
+                    let prev_img = cels[last_cel_idx].image.clone();
 
-                    if let Some(cel) = new_cel {
-                        cels.push(cel);
-                    }
+                    let new_cel = Cel {
+                        frame_index,
+                        layer_index,
+                        x: prev_x,
+                        y: prev_y,
+                        image: prev_img,
+                    };
+                    last_cel_per_layer[layer_index] = Some(cels.len());
+                    cels.push(new_cel);
                 }
             } else if let Some(history_str) = &psp_layer.history_json {
                 let history = serde_json::from_str::<History>(history_str)
@@ -67,25 +69,29 @@ pub fn convert(doc: pixel_studio_pro_v2::Document) -> Result<Document> {
 
                     let rgba_img = img.to_rgba8();
                     let (img_width, img_height) = rgba_img.dimensions();
-                    cels.push(Cel {
+
+                    let cel = Cel {
                         frame_index,
                         layer_index,
-                        x: psp_layer.sx as i16,
-                        y: psp_layer.sy as i16,
+                        x: psp_layer.sx.clamp(i16::MIN as i32, i16::MAX as i32) as i16,
+                        y: psp_layer.sy.clamp(i16::MIN as i32, i16::MAX as i32) as i16,
                         image: Image {
-                            width: img_width as u16,
-                            height: img_height as u16,
+                            width: u16::try_from(img_width).unwrap_or(u16::MAX),
+                            height: u16::try_from(img_height).unwrap_or(u16::MAX),
                             rgba: rgba_img.into_raw(),
                         },
-                    });
+                    };
+
+                    last_cel_per_layer[layer_index] = Some(cels.len());
+                    cels.push(cel);
                 }
             }
         }
     }
 
     Ok(Document {
-        width: doc.width,
-        height: doc.height,
+        width: u16::try_from(doc.width).unwrap_or(u16::MAX),
+        height: u16::try_from(doc.height).unwrap_or(u16::MAX),
         layers,
         frames,
         cels,

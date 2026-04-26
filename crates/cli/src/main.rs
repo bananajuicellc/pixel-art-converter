@@ -17,7 +17,7 @@ struct Cli {
 fn main() -> Result<()> {
     let cli = Cli::parse();
 
-    let doc = if cli.input_path.is_file() && cli.input_path.extension().and_then(|e| e.to_str()) == Some("psp") {
+    let doc = if cli.input_path.is_file() && cli.input_path.extension().and_then(|e| e.to_str()).is_some_and(|ext| ext.eq_ignore_ascii_case("psp")) {
         handle_psp_format(&cli.input_path)?
     } else if cli.input_path.join("document.json").exists() {
         handle_modern_format(&cli.input_path)?
