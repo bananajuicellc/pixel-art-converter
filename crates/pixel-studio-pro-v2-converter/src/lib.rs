@@ -222,19 +222,10 @@ pub fn convert(doc: pixel_studio_pro_v2::Document) -> Result<Document> {
                                                             }
                                                         } else if action.tool == 20 {
                                                             if p[3] > 0 {
-                                                                // Blend (over)
-                                                                let bg_p = final_img.get_pixel(dst_x as u32, dst_y as u32);
-                                                                let a1 = p[3] as f32 / 255.0;
-                                                                let a2 = bg_p[3] as f32 / 255.0;
-                                                                let a = a1 + a2 * (1.0 - a1);
-                                                                if a > 0.0 {
-                                                                    let r = ((p[0] as f32 * a1 + bg_p[0] as f32 * a2 * (1.0 - a1)) / a).round() as u8;
-                                                                    let g = ((p[1] as f32 * a1 + bg_p[1] as f32 * a2 * (1.0 - a1)) / a).round() as u8;
-                                                                    let b = ((p[2] as f32 * a1 + bg_p[2] as f32 * a2 * (1.0 - a1)) / a).round() as u8;
-                                                                    final_img.put_pixel(dst_x as u32, dst_y as u32, Rgba([r, g, b, (a * 255.0).round() as u8]));
-                                                                } else {
-                                                                    final_img.put_pixel(dst_x as u32, dst_y as u32, Rgba([0, 0, 0, 0]));
-                                                                }
+                                                                use image::Pixel;
+                                                                let mut bg_p = *final_img.get_pixel(dst_x as u32, dst_y as u32);
+                                                                bg_p.blend(p);
+                                                                final_img.put_pixel(dst_x as u32, dst_y as u32, bg_p);
                                                                 has_data = true;
                                                             }
                                                         }

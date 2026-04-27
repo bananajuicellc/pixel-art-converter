@@ -24,10 +24,3 @@ jobs:
 
     - name: Run tests
       run: cargo test --workspace --all-features --verbose
-
-    - name: Upload Test Diff Artifacts
-      if: failure()
-      uses: actions/upload-artifact@v4
-      with:
-        name: test-diffs
-        path: /tmp/*-diff.png
