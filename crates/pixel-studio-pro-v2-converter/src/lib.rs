@@ -187,9 +187,12 @@ pub fn convert(doc: pixel_studio_pro_v2::Document) -> Result<Document> {
                     }
                 }
 
-                // Second pass: replay actions onto the sized canvas
-                for action in history.actions.iter().take(history_index) {
-                    if action.tool == 20 || action.tool == 21 || action.tool == 6 {
+                // Second pass: replay actions onto the sized canvas if there was no valid source image
+                if !has_data {
+                    // Actions must be replayed up to index. Actually, history.index can sometimes point past the end.
+                    let replay_count = std::cmp::min(history.index as usize, history.actions.len());
+                    for action in history.actions.iter().take(replay_count) {
+                        if action.tool == 20 || action.tool == 21 || action.tool == 6 {
                         // Import/Paste/Move
                         if let Some(meta_str) = &action.meta {
                             if let Ok(meta) = serde_json::from_str::<MetaData>(meta_str) {
@@ -256,25 +259,26 @@ pub fn convert(doc: pixel_studio_pro_v2::Document) -> Result<Document> {
                                             flood_fill(&mut final_img, px as u32, py as u32, color);
                                         }
                                         has_data = true;
+                                        }
                                     }
                                 }
                             }
-                        }
-                    } else if action.tool == 1 || action.tool == 2 {
-                        // Eraser or Bucket Erase
-                        let pos_bytes = b64.decode(&action.positions).unwrap_or_default();
-                        for j in (0..pos_bytes.len()).step_by(4) {
-                            if j + 3 < pos_bytes.len() {
-                                let px = i16::from_le_bytes([pos_bytes[j], pos_bytes[j + 1]]) as i32 - min_x;
-                                let py = i16::from_le_bytes([pos_bytes[j + 2], pos_bytes[j + 3]]) as i32 - min_y;
+                        } else if action.tool == 1 || action.tool == 2 {
+                            // Eraser or Bucket Erase
+                            let pos_bytes = b64.decode(&action.positions).unwrap_or_default();
+                            for j in (0..pos_bytes.len()).step_by(4) {
+                                if j + 3 < pos_bytes.len() {
+                                    let px = i16::from_le_bytes([pos_bytes[j], pos_bytes[j + 1]]) as i32 - min_x;
+                                    let py = i16::from_le_bytes([pos_bytes[j + 2], pos_bytes[j + 3]]) as i32 - min_y;
 
-                                if px >= 0 && py >= 0 && (px as u32) < img_width && (py as u32) < img_height {
-                                    if action.tool == 1 {
-                                        final_img.put_pixel(px as u32, py as u32, Rgba([0, 0, 0, 0]));
-                                    } else {
-                                        flood_fill(&mut final_img, px as u32, py as u32, Rgba([0, 0, 0, 0]));
+                                    if px >= 0 && py >= 0 && (px as u32) < img_width && (py as u32) < img_height {
+                                        if action.tool == 1 {
+                                            final_img.put_pixel(px as u32, py as u32, Rgba([0, 0, 0, 0]));
+                                        } else {
+                                            flood_fill(&mut final_img, px as u32, py as u32, Rgba([0, 0, 0, 0]));
+                                        }
+                                        has_data = true;
                                     }
-                                    has_data = true;
                                 }
                             }
                         }
