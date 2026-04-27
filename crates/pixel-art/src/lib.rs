@@ -56,6 +56,52 @@ impl Document {
     }
 }
 
+#[cfg(feature = "tiny-skia")]
+impl Document {
+    pub fn render_skia(&self) -> tiny_skia::Pixmap {
+        let mut base = tiny_skia::Pixmap::new(self.width as u32, self.height as u32)
+            .expect("Failed to create base Pixmap");
+
+        if self.frames.is_empty() {
+            return base;
+        }
+
+        let mut frame_cels: Vec<&Cel> = self.cels.iter()
+            .filter(|c| c.frame_index == 0)
+            .collect();
+
+        frame_cels.sort_by_key(|c| c.layer_index);
+
+        for cel in frame_cels {
+            let layer = match self.layers.get(cel.layer_index) {
+                Some(l) => l,
+                None => continue,
+            };
+            if !layer.visible {
+                continue;
+            }
+
+            let cel_img: tiny_skia::Pixmap = cel.image.clone().into();
+
+            let mut paint = tiny_skia::PixmapPaint::default();
+            paint.opacity = layer.opacity as f32 / 255.0;
+
+            let transform = tiny_skia::Transform::from_translate(cel.x as f32, cel.y as f32);
+
+            base.draw_pixmap(
+                0,
+                0,
+                cel_img.as_ref(),
+                &paint,
+                transform,
+                None
+            );
+        }
+
+        base
+    }
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct Layer {
     pub name: String,
@@ -139,5 +185,25 @@ impl From<image::RgbaImage> for Image {
             height: img.height().try_into().expect("image height exceeds u16"),
             rgba: img.into_raw(),
         }
+    }
+}
+
+#[cfg(feature = "tiny-skia")]
+impl From<Image> for tiny_skia::Pixmap {
+    fn from(img: Image) -> Self {
+        let mut pixmap = tiny_skia::Pixmap::new(img.width as u32, img.height as u32)
+            .expect("Failed to create Pixmap");
+
+        let pixels = pixmap.pixels_mut();
+        for (i, chunk) in img.rgba.chunks_exact(4).enumerate() {
+            let r = chunk[0];
+            let g = chunk[1];
+            let b = chunk[2];
+            let a = chunk[3];
+            // tiny-skia uses PremultipliedColorU8. We need to actively premultiply the colors.
+            let color = tiny_skia::ColorU8::from_rgba(r, g, b, a).premultiply();
+            pixels[i] = color;
+        }
+        pixmap
     }
 }

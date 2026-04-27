@@ -45,7 +45,17 @@ fn main() -> Result<()> {
             cli.output_path
         );
     } else if ext == "png" {
-        #[cfg(feature = "image")]
+        #[cfg(feature = "tiny-skia")]
+        {
+            let img = doc.render_skia();
+            img.save_png(&cli.output_path)
+                .context("Failed to write PNG file")?;
+            println!(
+                "Successfully wrote PNG file to {:?}",
+                cli.output_path
+            );
+        }
+        #[cfg(all(feature = "image", not(feature = "tiny-skia")))]
         {
             let img = doc.render();
             img.save(&cli.output_path)
@@ -55,9 +65,9 @@ fn main() -> Result<()> {
                 cli.output_path
             );
         }
-        #[cfg(not(feature = "image"))]
+        #[cfg(not(any(feature = "image", feature = "tiny-skia")))]
         {
-            return Err(anyhow!("PNG export requires the 'image' feature to be enabled"));
+            return Err(anyhow!("PNG export requires the 'image' or 'tiny-skia' feature to be enabled"));
         }
     } else {
         return Err(anyhow!("Unsupported output format: '{}'. Supported formats are .ase, .aseprite, and .png", ext));
