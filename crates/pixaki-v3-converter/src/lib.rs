@@ -1,8 +1,8 @@
+use anyhow::{Context, Result};
+use pixaki_v3;
+use pixel_art::{BlendMode, Cel, Document, Frame, Image, Layer};
 use std::collections::HashMap;
 use std::path::Path;
-use pixel_art::{Document, Layer, Frame, Cel, BlendMode, Image};
-use pixaki_v3;
-use anyhow::{Result, Context};
 
 pub fn convert(doc: pixaki_v3::Document, pixaki_path: &Path) -> Result<Document> {
     let sprite = doc.sprites.get(0).context("No sprite found")?;
@@ -114,22 +114,21 @@ mod tests {
     #[test]
     fn test_v3_conversion_basic() {
         let doc_v3 = pixaki_v3::Document {
-            sprites: vec![
-                pixaki_v3::Sprite {
-                    size: pixaki_v3::Size { width: 32.0, height: 32.0 },
-                    duration: 2,
-                    layers: vec![
-                        pixaki_v3::Layer {
-                            name: "Layer 1".to_string(),
-                            is_visible: true,
-                            opacity: 1.0,
-                            blend_mode: Some("normal".to_string()),
-                            ..Default::default()
-                        }
-                    ],
+            sprites: vec![pixaki_v3::Sprite {
+                size: pixaki_v3::Size {
+                    width: 32.0,
+                    height: 32.0,
+                },
+                duration: 2,
+                layers: vec![pixaki_v3::Layer {
+                    name: "Layer 1".to_string(),
+                    is_visible: true,
+                    opacity: 1.0,
+                    blend_mode: Some("normal".to_string()),
                     ..Default::default()
-                }
-            ],
+                }],
+                ..Default::default()
+            }],
             ..Default::default()
         };
 

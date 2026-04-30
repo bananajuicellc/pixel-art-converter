@@ -1,7 +1,7 @@
-use std::path::Path;
-use pixel_art::{Document, Layer, Frame, Cel, BlendMode, Image};
-use pixaki_v2;
 use anyhow::Result;
+use pixaki_v2;
+use pixel_art::{BlendMode, Cel, Document, Frame, Image, Layer};
+use std::path::Path;
 
 pub fn convert(doc: pixaki_v2::Document, base_path: &Path) -> Result<Document> {
     let width = doc.size.width as u16;
@@ -72,27 +72,24 @@ mod tests {
     #[test]
     fn test_v2_conversion_basic() {
         let doc_v2 = pixaki_v2::Document {
-            size: pixaki_v2::Size { width: 16.0, height: 16.0 },
-            symbols: vec![
-                pixaki_v2::Symbol {
-                    name: "Symbol 1".to_string(),
-                    frames: vec![
-                        pixaki_v2::Frame {
-                            duration: 100,
-                            layers: vec![
-                                pixaki_v2::Layer {
-                                    alpha: 1.0,
-                                    image_filename: "non_existent.png".to_string(),
-                                    visible: true,
-                                    ..Default::default()
-                                }
-                            ],
-                            ..Default::default()
-                        }
-                    ],
+            size: pixaki_v2::Size {
+                width: 16.0,
+                height: 16.0,
+            },
+            symbols: vec![pixaki_v2::Symbol {
+                name: "Symbol 1".to_string(),
+                frames: vec![pixaki_v2::Frame {
+                    duration: 100,
+                    layers: vec![pixaki_v2::Layer {
+                        alpha: 1.0,
+                        image_filename: "non_existent.png".to_string(),
+                        visible: true,
+                        ..Default::default()
+                    }],
                     ..Default::default()
-                }
-            ],
+                }],
+                ..Default::default()
+            }],
             ..Default::default()
         };
 

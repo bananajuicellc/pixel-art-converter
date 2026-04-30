@@ -1,6 +1,6 @@
-use aseprite::{AsepriteFile, ColorMode, Pixels, BlendMode as AseBlendMode, LayerOptions};
-use pixel_art::{Document, BlendMode};
 use anyhow::Result;
+use aseprite::{AsepriteFile, BlendMode as AseBlendMode, ColorMode, LayerOptions, Pixels};
+use pixel_art::{BlendMode, Document};
 
 pub fn convert(doc: Document) -> Result<AsepriteFile> {
     let mut aseprite = AsepriteFile::new(doc.width, doc.height, ColorMode::Rgba);
@@ -26,9 +26,15 @@ pub fn convert(doc: Document) -> Result<AsepriteFile> {
     for cel in &doc.cels {
         let layer_handle = layer_handles[cel.layer_index];
         let frame_handle = frame_handles[cel.frame_index];
-        let pixels = Pixels::new(cel.image.rgba.clone(), cel.image.width, cel.image.height, ColorMode::Rgba)
-            .map_err(|e| anyhow::anyhow!("Failed to create Pixels: {}", e))?;
-        aseprite.set_cel(layer_handle, frame_handle, pixels, cel.x, cel.y)
+        let pixels = Pixels::new(
+            cel.image.rgba.clone(),
+            cel.image.width,
+            cel.image.height,
+            ColorMode::Rgba,
+        )
+        .map_err(|e| anyhow::anyhow!("Failed to create Pixels: {}", e))?;
+        aseprite
+            .set_cel(layer_handle, frame_handle, pixels, cel.x, cel.y)
             .map_err(|e| anyhow::anyhow!("Failed to set cel: {}", e))?;
     }
 
@@ -59,25 +65,21 @@ fn map_blend_mode(b: BlendMode) -> AseBlendMode {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use pixel_art::{Document, Layer, Frame, BlendMode};
+    use pixel_art::{BlendMode, Document, Frame, Layer};
 
     #[test]
     fn test_aseprite_conversion_basic() {
         let doc = Document {
             width: 8,
             height: 8,
-            layers: vec![
-                Layer {
-                    name: "Base".to_string(),
-                    opacity: 255,
-                    visible: true,
-                    blend_mode: BlendMode::Normal,
-                }
-            ],
-            frames: vec![
-                Frame { duration_ms: 100 }
-            ],
-            cels: vec![]
+            layers: vec![Layer {
+                name: "Base".to_string(),
+                opacity: 255,
+                visible: true,
+                blend_mode: BlendMode::Normal,
+            }],
+            frames: vec![Frame { duration_ms: 100 }],
+            cels: vec![],
         };
 
         let ase = convert(doc).unwrap();
