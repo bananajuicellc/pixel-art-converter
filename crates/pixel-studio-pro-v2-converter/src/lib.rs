@@ -10,6 +10,8 @@ use serde::Deserialize;
 struct MetaData {
     rect: Option<RectData>,
     pixels: Option<String>,
+    from: Option<PointData>,
+    to: Option<PointData>,
 }
 
 #[derive(Deserialize, Debug)]
@@ -116,7 +118,54 @@ fn calculate_bounds(
     let history_index = history.index as usize;
     for action in history.actions.iter().take(history_index) {
         match ToolType::from(action.tool) {
-            ToolType::PasteImport | ToolType::Cut | ToolType::Move | ToolType::LineShape => {
+            ToolType::Move => {
+                let pos_bytes = b64.decode(&action.positions).unwrap_or_default();
+                if pos_bytes.len() >= 8 {
+                    let px1 = i16::from_le_bytes([pos_bytes[0], pos_bytes[1]]) as i32;
+                    let py1 = doc_height as i32
+                        - 1
+                        - i16::from_le_bytes([pos_bytes[2], pos_bytes[3]]) as i32;
+                    let px2 = i16::from_le_bytes([pos_bytes[4], pos_bytes[5]]) as i32;
+                    let py2 = doc_height as i32
+                        - 1
+                        - i16::from_le_bytes([pos_bytes[6], pos_bytes[7]]) as i32;
+                    let dx = px2 - px1;
+                    let dy = py2 - py1;
+
+                    if let Some(meta_str) = &action.meta {
+                        if let Ok(meta) = serde_json::from_str::<MetaData>(meta_str) {
+                            if let (Some(from), Some(to)) = (&meta.from, &meta.to) {
+                                let sel_min_x = from.x.min(to.x);
+                                let sel_max_x = from.x.max(to.x);
+                                let sel_min_y = from.y.min(to.y);
+                                let sel_max_y = from.y.max(to.y);
+
+                                let top_down_min_y = doc_height as i32 - 1 - sel_max_y;
+                                let top_down_max_y = doc_height as i32 - 1 - sel_min_y;
+
+                                let shifted_min_x = sel_min_x + dx;
+                                let shifted_max_x = sel_max_x + dx;
+                                let shifted_min_y = top_down_min_y + dy;
+                                let shifted_max_y = top_down_max_y + dy;
+
+                                if shifted_min_x < min_x {
+                                    min_x = shifted_min_x;
+                                }
+                                if shifted_max_x > max_x {
+                                    max_x = shifted_max_x;
+                                }
+                                if shifted_min_y < min_y {
+                                    min_y = shifted_min_y;
+                                }
+                                if shifted_max_y > max_y {
+                                    max_y = shifted_max_y;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            ToolType::PasteImport | ToolType::Cut | ToolType::LineShape => {
                 if let Some(meta_str) = &action.meta {
                     if let Ok(meta) = serde_json::from_str::<MetaData>(meta_str) {
                         if let (Some(pixels_b64), Some(rect)) = (&meta.pixels, &meta.rect) {
@@ -221,8 +270,71 @@ fn replay_actions(
         for action in history.actions.iter().take(replay_count) {
             let tool_type = ToolType::from(action.tool);
             match tool_type {
-                ToolType::PasteImport | ToolType::Cut | ToolType::Move | ToolType::LineShape => {
-                    // Import/Paste/Move/LineShape
+                ToolType::Move => {
+                    let pos_bytes = b64.decode(&action.positions).unwrap_or_default();
+                    if pos_bytes.len() >= 8 {
+                        let px1 = i16::from_le_bytes([pos_bytes[0], pos_bytes[1]]) as i32;
+                        let py1 = doc_height as i32
+                            - 1
+                            - i16::from_le_bytes([pos_bytes[2], pos_bytes[3]]) as i32;
+                        let px2 = i16::from_le_bytes([pos_bytes[4], pos_bytes[5]]) as i32;
+                        let py2 = doc_height as i32
+                            - 1
+                            - i16::from_le_bytes([pos_bytes[6], pos_bytes[7]]) as i32;
+                        let dx = px2 - px1;
+                        let dy = py2 - py1;
+
+                        if let Some(meta_str) = &action.meta {
+                            if let Ok(meta) = serde_json::from_str::<MetaData>(meta_str) {
+                                if let (Some(from), Some(to)) = (&meta.from, &meta.to) {
+                                    let sel_min_x = from.x.min(to.x);
+                                    let sel_max_x = from.x.max(to.x);
+                                    let sel_min_y = from.y.min(to.y);
+                                    let sel_max_y = from.y.max(to.y);
+
+                                    let top_down_min_y = doc_height as i32 - 1 - sel_max_y;
+                                    let top_down_max_y = doc_height as i32 - 1 - sel_min_y;
+
+                                    let mut moved_pixels = Vec::new();
+
+                                    for y in top_down_min_y..=top_down_max_y {
+                                        for x in sel_min_x..=sel_max_x {
+                                            let canvas_x = x - min_x;
+                                            let canvas_y = y - min_y;
+
+                                            if canvas_x >= 0
+                                                && canvas_y >= 0
+                                                && (canvas_x as u32) < img_width
+                                                && (canvas_y as u32) < img_height
+                                            {
+                                                let p = *final_img.get_pixel(canvas_x as u32, canvas_y as u32);
+                                                moved_pixels.push((x, y, p));
+                                                final_img.put_pixel(canvas_x as u32, canvas_y as u32, Rgba([0, 0, 0, 0]));
+                                                has_data = true;
+                                            }
+                                        }
+                                    }
+
+                                    for (x, y, p) in moved_pixels {
+                                        let shifted_x = x + dx - min_x;
+                                        let shifted_y = y + dy - min_y;
+
+                                        if shifted_x >= 0
+                                            && shifted_y >= 0
+                                            && (shifted_x as u32) < img_width
+                                            && (shifted_y as u32) < img_height
+                                        {
+                                            final_img.put_pixel(shifted_x as u32, shifted_y as u32, p);
+                                            has_data = true;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                ToolType::PasteImport | ToolType::Cut | ToolType::LineShape => {
+                    // Import/Paste/Cut/LineShape
                     if let Some(meta_str) = &action.meta {
                         if let Ok(meta) = serde_json::from_str::<MetaData>(meta_str) {
                             if let (Some(pixels_b64), Some(rect)) = (&meta.pixels, &meta.rect) {
@@ -251,8 +363,7 @@ fn replay_actions(
                                                     // Just straight alpha blend all tools over the canvas. Tool 6 and 21 include eraser pixels
                                                     // (alpha 0) that need to zero out the destination. Tool 20 (paste) should blend on top.
 
-                                                    if tool_type == ToolType::Move
-                                                        || tool_type == ToolType::Cut
+                                                    if tool_type == ToolType::Cut
                                                         || tool_type == ToolType::LineShape
                                                     {
                                                         if p[3] == 0 {
@@ -263,7 +374,7 @@ fn replay_actions(
                                                             );
                                                             has_data = true;
                                                         } else {
-                                                            // Move/Cut completely replaces the destination with the moved pixels
+                                                            // Cut completely replaces the destination with the moved pixels
                                                             final_img.put_pixel(
                                                                 dst_x as u32,
                                                                 dst_y as u32,

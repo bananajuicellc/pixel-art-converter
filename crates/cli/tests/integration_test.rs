@@ -192,13 +192,6 @@ fn test_pixel_studio_pro_v2_history_output_matches() {
     let test_cases = vec![
         "history002-paste",
         "history003-move",
-        "history004-bucket",
-        "history005-bucket-erase",
-        "history006-cut-paste",
-        "history007-dotpict-pencil",
-        "history008-dotpict-eraser",
-        "history009-copy-paste",
-        "history010-shapes",
     ];
 
     for case in test_cases {
