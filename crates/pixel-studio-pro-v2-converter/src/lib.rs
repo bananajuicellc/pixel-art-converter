@@ -115,53 +115,57 @@ fn calculate_bounds(
 
     let history_index = history.index as usize;
     for action in history.actions.iter().take(history_index) {
-        if action.tool == 20 || action.tool == 21 || action.tool == 6 {
-            if let Some(meta_str) = &action.meta {
-                if let Ok(meta) = serde_json::from_str::<MetaData>(meta_str) {
-                    if let (Some(pixels_b64), Some(rect)) = (&meta.pixels, &meta.rect) {
-                        if let Ok(img_data) = b64.decode(pixels_b64) {
-                            if let Ok(img) = image::load_from_memory(&img_data) {
-                                let dst_min_x = rect.from.x;
-                                let dst_min_y = rect.from.y;
-                                let dst_max_x = rect.from.x + img.width() as i32;
-                                let dst_max_y = rect.from.y + img.height() as i32;
-                                if dst_min_x < min_x {
-                                    min_x = dst_min_x;
-                                }
-                                if dst_min_y < min_y {
-                                    min_y = dst_min_y;
-                                }
-                                if dst_max_x > max_x {
-                                    max_x = dst_max_x;
-                                }
-                                if dst_max_y > max_y {
-                                    max_y = dst_max_y;
+        match ToolType::from(action.tool) {
+            ToolType::PasteImport | ToolType::Cut | ToolType::LineShape => {
+                if let Some(meta_str) = &action.meta {
+                    if let Ok(meta) = serde_json::from_str::<MetaData>(meta_str) {
+                        if let (Some(pixels_b64), Some(rect)) = (&meta.pixels, &meta.rect) {
+                            if let Ok(img_data) = b64.decode(pixels_b64) {
+                                if let Ok(img) = image::load_from_memory(&img_data) {
+                                    let dst_min_x = rect.from.x;
+                                    let dst_min_y = rect.from.y;
+                                    let dst_max_x = rect.from.x + img.width() as i32;
+                                    let dst_max_y = rect.from.y + img.height() as i32;
+                                    if dst_min_x < min_x {
+                                        min_x = dst_min_x;
+                                    }
+                                    if dst_min_y < min_y {
+                                        min_y = dst_min_y;
+                                    }
+                                    if dst_max_x > max_x {
+                                        max_x = dst_max_x;
+                                    }
+                                    if dst_max_y > max_y {
+                                        max_y = dst_max_y;
+                                    }
                                 }
                             }
                         }
                     }
                 }
             }
-        } else if action.tool == 0 || action.tool == 1 || action.tool == 2 || action.tool == 3 {
-            let pos_bytes = b64.decode(&action.positions).unwrap_or_default();
-            for j in (0..pos_bytes.len()).step_by(4) {
-                if j + 3 < pos_bytes.len() {
-                    let px = i16::from_le_bytes([pos_bytes[j], pos_bytes[j + 1]]) as i32;
-                    let py = i16::from_le_bytes([pos_bytes[j + 2], pos_bytes[j + 3]]) as i32;
-                    if px < min_x {
-                        min_x = px;
-                    }
-                    if py < min_y {
-                        min_y = py;
-                    }
-                    if px + 1 > max_x {
-                        max_x = px + 1;
-                    }
-                    if py + 1 > max_y {
-                        max_y = py + 1;
+            ToolType::Pen | ToolType::Eraser | ToolType::Selection | ToolType::Bucket => {
+                let pos_bytes = b64.decode(&action.positions).unwrap_or_default();
+                for j in (0..pos_bytes.len()).step_by(4) {
+                    if j + 3 < pos_bytes.len() {
+                        let px = i16::from_le_bytes([pos_bytes[j], pos_bytes[j + 1]]) as i32;
+                        let py = i16::from_le_bytes([pos_bytes[j + 2], pos_bytes[j + 3]]) as i32;
+                        if px < min_x {
+                            min_x = px;
+                        }
+                        if py < min_y {
+                            min_y = py;
+                        }
+                        if px + 1 > max_x {
+                            max_x = px + 1;
+                        }
+                        if py + 1 > max_y {
+                            max_y = py + 1;
+                        }
                     }
                 }
             }
+            _ => {}
         }
     }
 
