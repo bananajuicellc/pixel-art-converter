@@ -1,25 +1,30 @@
-use std::process::Command;
 use std::fs;
 use std::path::PathBuf;
+use std::process::Command;
 
 #[test]
 fn test_fox_smile() {
     let pixaki_path = PathBuf::from("tests/data/fox_smile.pixaki");
     let output_path = PathBuf::from("tests/data/fox_smile.aseprite");
-    
+
     // Ensure output doesn't exist
     if output_path.exists() {
         fs::remove_file(&output_path).unwrap();
     }
 
     let status = Command::new("cargo")
-        .args(["run", "--", pixaki_path.to_str().unwrap(), output_path.to_str().unwrap()])
+        .args([
+            "run",
+            "--",
+            pixaki_path.to_str().unwrap(),
+            output_path.to_str().unwrap(),
+        ])
         .status()
         .expect("Failed to execute command");
 
     assert!(status.success());
     assert!(output_path.exists());
-    
+
     // Optional: Clean up
     fs::remove_file(&output_path).unwrap();
 }
@@ -28,21 +33,26 @@ fn test_fox_smile() {
 fn test_fox_walk_2010s() {
     let pixaki_path = PathBuf::from("tests/data/fox_walk.pixaki");
     let output_path = PathBuf::from("tests/data/fox_walk.aseprite");
-    
+
     // Ensure output doesn't exist
     if output_path.exists() {
         fs::remove_file(&output_path).unwrap();
     }
 
     let status = Command::new("cargo")
-        .args(["run", "--", pixaki_path.to_str().unwrap(), output_path.to_str().unwrap()])
+        .args([
+            "run",
+            "--",
+            pixaki_path.to_str().unwrap(),
+            output_path.to_str().unwrap(),
+        ])
         .status()
         .expect("Failed to execute command");
 
     // This will likely fail for now as it's an old format
     assert!(status.success());
     assert!(output_path.exists());
-    
+
     // Optional: Clean up
     fs::remove_file(&output_path).unwrap();
 }
@@ -59,7 +69,14 @@ fn test_cli_tiny_skia_png_export_fox_smile() {
     }
 
     let status = Command::new("cargo")
-        .args(["run", "--features", "tiny-skia", "--", pixaki_path.to_str().unwrap(), output_path.to_str().unwrap()])
+        .args([
+            "run",
+            "--features",
+            "tiny-skia",
+            "--",
+            pixaki_path.to_str().unwrap(),
+            output_path.to_str().unwrap(),
+        ])
         .status()
         .expect("Failed to execute command");
 
@@ -82,7 +99,14 @@ fn test_cli_png_export_fox_smile() {
     }
 
     let status = Command::new("cargo")
-        .args(["run", "--features", "image", "--", pixaki_path.to_str().unwrap(), output_path.to_str().unwrap()])
+        .args([
+            "run",
+            "--features",
+            "image",
+            "--",
+            pixaki_path.to_str().unwrap(),
+            output_path.to_str().unwrap(),
+        ])
         .status()
         .expect("Failed to execute command");
 
@@ -99,10 +123,15 @@ fn test_image_export_fox_smile() {
     let pixaki_path = PathBuf::from("tests/data/fox_smile.pixaki");
     let document_path = pixaki_path.join("document.json");
     let json_str = fs::read_to_string(document_path).expect("Unable to read document.json");
-    let doc_v3: pixaki_v3::Document = serde_json::from_str(&json_str).expect("Unable to parse document.json");
-    let doc = pixaki_v3_converter::convert(doc_v3, &pixaki_path).expect("Failed to convert pixaki_v3::Document");
+    let doc_v3: pixaki_v3::Document =
+        serde_json::from_str(&json_str).expect("Unable to parse document.json");
+    let doc = pixaki_v3_converter::convert(doc_v3, &pixaki_path)
+        .expect("Failed to convert pixaki_v3::Document");
 
-    assert!(!doc.cels.is_empty(), "Document should have at least one cel");
+    assert!(
+        !doc.cels.is_empty(),
+        "Document should have at least one cel"
+    );
     let first_cel_image = doc.cels[0].image.clone();
 
     let rgba_image: image::RgbaImage = first_cel_image.into();
@@ -115,10 +144,15 @@ fn test_image_export_fox_smile() {
 fn test_image_export_fox_walk() {
     let pixaki_path = PathBuf::from("tests/data/fox_walk.pixaki");
     let plist_path = pixaki_path.join("DocumentInfo.plist");
-    let doc_v2: pixaki_v2::Document = plist::from_file(plist_path).expect("Failed to parse DocumentInfo.plist");
-    let doc = pixaki_v2_converter::convert(doc_v2, &pixaki_path).expect("Failed to convert pixaki_v2::Document");
+    let doc_v2: pixaki_v2::Document =
+        plist::from_file(plist_path).expect("Failed to parse DocumentInfo.plist");
+    let doc = pixaki_v2_converter::convert(doc_v2, &pixaki_path)
+        .expect("Failed to convert pixaki_v2::Document");
 
-    assert!(!doc.cels.is_empty(), "Document should have at least one cel");
+    assert!(
+        !doc.cels.is_empty(),
+        "Document should have at least one cel"
+    );
     let first_cel_image = doc.cels[0].image.clone();
 
     let rgba_image: image::RgbaImage = first_cel_image.into();
@@ -131,10 +165,15 @@ fn test_image_export_fox_walk() {
 fn test_image_export_frame_psp() {
     let psp_path = PathBuf::from("tests/data/frame.psp");
     let json_str = fs::read_to_string(&psp_path).expect("Unable to read frame.psp");
-    let doc_psp: pixel_studio_pro_v2::Document = serde_json::from_str(&json_str).expect("Unable to parse frame.psp");
-    let doc = pixel_studio_pro_v2_converter::convert(doc_psp).expect("Failed to convert pixel_studio_pro_v2::Document");
+    let doc_psp: pixel_studio_pro_v2::Document =
+        serde_json::from_str(&json_str).expect("Unable to parse frame.psp");
+    let doc = pixel_studio_pro_v2_converter::convert(doc_psp)
+        .expect("Failed to convert pixel_studio_pro_v2::Document");
 
-    assert!(!doc.cels.is_empty(), "Document should have at least one cel");
+    assert!(
+        !doc.cels.is_empty(),
+        "Document should have at least one cel"
+    );
     let first_cel_image = doc.cels[0].image.clone();
 
     let rgba_image: image::RgbaImage = first_cel_image.clone().into();
@@ -147,6 +186,7 @@ fn test_image_export_frame_psp() {
 #[test]
 fn test_pixel_studio_pro_v2_history_output_matches() {
     let data_dir = PathBuf::from("tests/data/pixel-studio-pro-v2");
+    let diff_dir = PathBuf::from("tests/data/diff");
 
     // Check history files that should produce png output matching existing .png files
     let test_cases = vec![
@@ -168,19 +208,34 @@ fn test_pixel_studio_pro_v2_history_output_matches() {
         println!("Testing case: {}", case);
 
         // Convert PSP to Internal Document
-        let json_str = fs::read_to_string(&psp_path).unwrap_or_else(|_| panic!("Unable to read {}", psp_path.display()));
-        let doc_psp: pixel_studio_pro_v2::Document = serde_json::from_str(&json_str).unwrap_or_else(|_| panic!("Unable to parse {}", psp_path.display()));
-        let doc = pixel_studio_pro_v2_converter::convert(doc_psp).unwrap_or_else(|_| panic!("Failed to convert {}", psp_path.display()));
+        let json_str = fs::read_to_string(&psp_path)
+            .unwrap_or_else(|_| panic!("Unable to read {}", psp_path.display()));
+        let doc_psp: pixel_studio_pro_v2::Document = serde_json::from_str(&json_str)
+            .unwrap_or_else(|_| panic!("Unable to parse {}", psp_path.display()));
+        let doc = pixel_studio_pro_v2_converter::convert(doc_psp)
+            .unwrap_or_else(|_| panic!("Failed to convert {}", psp_path.display()));
 
         // Render Internal Document to PNG
         let rendered_image = doc.render();
 
         // Load Expected PNG
-        let expected_image = image::open(&expected_png_path).unwrap_or_else(|_| panic!("Unable to open {}", expected_png_path.display())).to_rgba8();
+        let expected_image = image::open(&expected_png_path)
+            .unwrap_or_else(|_| panic!("Unable to open {}", expected_png_path.display()))
+            .to_rgba8();
 
         // Compare Dimensions
-        assert_eq!(rendered_image.width(), expected_image.width(), "Width mismatch for {}", case);
-        assert_eq!(rendered_image.height(), expected_image.height(), "Height mismatch for {}", case);
+        assert_eq!(
+            rendered_image.width(),
+            expected_image.width(),
+            "Width mismatch for {}",
+            case
+        );
+        assert_eq!(
+            rendered_image.height(),
+            expected_image.height(),
+            "Height mismatch for {}",
+            case
+        );
 
         // Compare Pixels
         for y in 0..rendered_image.height() {
@@ -195,10 +250,10 @@ fn test_pixel_studio_pro_v2_history_output_matches() {
                 }
 
                 if rendered_pixel != &expected_pixel {
-                    let temp_dir = std::env::temp_dir();
-                    let diff_path = temp_dir.join(format!("{}-diff.png", case));
+                    let diff_path = diff_dir.join(format!("{}-diff.png", case));
                     if !diff_path.exists() {
-                        let mut diff_img = image::RgbaImage::new(rendered_image.width(), rendered_image.height());
+                        let mut diff_img =
+                            image::RgbaImage::new(rendered_image.width(), rendered_image.height());
                         for dy in 0..rendered_image.height() {
                             for dx in 0..rendered_image.width() {
                                 let p1 = rendered_image.get_pixel(dx, dy);
@@ -213,7 +268,15 @@ fn test_pixel_studio_pro_v2_history_output_matches() {
                         diff_img.save(&diff_path).unwrap();
                     }
 
-                    assert_eq!(rendered_pixel, &expected_pixel, "Pixel mismatch at ({}, {}) for {}. Diff saved to {}", x, y, case, diff_path.display());
+                    assert_eq!(
+                        rendered_pixel,
+                        &expected_pixel,
+                        "Pixel mismatch at ({}, {}) for {}. Diff saved to {}",
+                        x,
+                        y,
+                        case,
+                        diff_path.display()
+                    );
                     break;
                 }
             }

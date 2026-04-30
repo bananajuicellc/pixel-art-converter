@@ -16,9 +16,7 @@ impl Document {
         }
 
         // Collect all cels for frame 0
-        let mut frame_cels: Vec<&Cel> = self.cels.iter()
-            .filter(|c| c.frame_index == 0)
-            .collect();
+        let mut frame_cels: Vec<&Cel> = self.cels.iter().filter(|c| c.frame_index == 0).collect();
 
         // Sort cels by layer index (assuming lower index is bottom layer or vice versa, typically we render bottom-up)
         // Let's assume layer index 0 is bottom, and higher is on top. If needed, reverse.
@@ -66,9 +64,7 @@ impl Document {
             return base;
         }
 
-        let mut frame_cels: Vec<&Cel> = self.cels.iter()
-            .filter(|c| c.frame_index == 0)
-            .collect();
+        let mut frame_cels: Vec<&Cel> = self.cels.iter().filter(|c| c.frame_index == 0).collect();
 
         frame_cels.sort_by_key(|c| c.layer_index);
 
@@ -88,14 +84,7 @@ impl Document {
 
             let transform = tiny_skia::Transform::from_translate(cel.x as f32, cel.y as f32);
 
-            base.draw_pixmap(
-                0,
-                0,
-                cel_img.as_ref(),
-                &paint,
-                transform,
-                None
-            );
+            base.draw_pixmap(0, 0, cel_img.as_ref(), &paint, transform, None);
         }
 
         base
