@@ -192,6 +192,29 @@ fn calculate_bounds(
                             }
                         }
                     }
+                } else if ToolType::from(action.tool) == ToolType::LineShape {
+                    let pos_bytes = b64.decode(&action.positions).unwrap_or_default();
+                    for j in (0..pos_bytes.len()).step_by(4) {
+                        if j + 3 < pos_bytes.len() {
+                            let px = i16::from_le_bytes([pos_bytes[j], pos_bytes[j + 1]]) as i32;
+                            // Y is inverted (bottom-up in .psp files)
+                            let py = doc_height as i32
+                                - 1
+                                - i16::from_le_bytes([pos_bytes[j + 2], pos_bytes[j + 3]]) as i32;
+                            if px < min_x {
+                                min_x = px;
+                            }
+                            if py < min_y {
+                                min_y = py;
+                            }
+                            if px + 1 > max_x {
+                                max_x = px + 1;
+                            }
+                            if py + 1 > max_y {
+                                max_y = py + 1;
+                            }
+                        }
+                    }
                 }
             }
             ToolType::Pen | ToolType::Eraser | ToolType::Selection | ToolType::Bucket => {
@@ -414,6 +437,35 @@ fn replay_actions(
                                 }
                             }
                         }
+                } else if tool_type == ToolType::LineShape {
+                    let pos_bytes = b64.decode(&action.positions).unwrap_or_default();
+                    let col_bytes = b64.decode(&action.colors).unwrap_or_default();
+
+                    let color = if col_bytes.len() >= 4 {
+                        Rgba([col_bytes[0], col_bytes[1], col_bytes[2], col_bytes[3]])
+                    } else {
+                        Rgba([0, 0, 0, 0])
+                    };
+
+                    for j in (0..pos_bytes.len()).step_by(4) {
+                        if j + 3 < pos_bytes.len() {
+                            let px = i16::from_le_bytes([pos_bytes[j], pos_bytes[j + 1]]) as i32
+                                - min_x;
+                            let py = (doc_height as i32
+                                - 1
+                                - i16::from_le_bytes([pos_bytes[j + 2], pos_bytes[j + 3]]) as i32)
+                                - min_y;
+
+                            if px >= 0
+                                && py >= 0
+                                && (px as u32) < img_width
+                                && (py as u32) < img_height
+                            {
+                                final_img.put_pixel(px as u32, py as u32, color);
+                                has_data = true;
+                            }
+                        }
+                    }
                     }
                 }
                 ToolType::Pen | ToolType::Bucket => {
