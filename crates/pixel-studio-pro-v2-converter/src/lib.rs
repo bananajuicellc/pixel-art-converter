@@ -307,9 +307,14 @@ fn replay_actions(
                                                 && (canvas_x as u32) < img_width
                                                 && (canvas_y as u32) < img_height
                                             {
-                                                let p = *final_img.get_pixel(canvas_x as u32, canvas_y as u32);
+                                                let p = *final_img
+                                                    .get_pixel(canvas_x as u32, canvas_y as u32);
                                                 moved_pixels.push((x, y, p));
-                                                final_img.put_pixel(canvas_x as u32, canvas_y as u32, Rgba([0, 0, 0, 0]));
+                                                final_img.put_pixel(
+                                                    canvas_x as u32,
+                                                    canvas_y as u32,
+                                                    Rgba([0, 0, 0, 0]),
+                                                );
                                                 has_data = true;
                                             }
                                         }
@@ -324,7 +329,11 @@ fn replay_actions(
                                             && (shifted_x as u32) < img_width
                                             && (shifted_y as u32) < img_height
                                         {
-                                            final_img.put_pixel(shifted_x as u32, shifted_y as u32, p);
+                                            final_img.put_pixel(
+                                                shifted_x as u32,
+                                                shifted_y as u32,
+                                                p,
+                                            );
                                             has_data = true;
                                         }
                                     }
