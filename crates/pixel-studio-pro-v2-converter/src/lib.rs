@@ -89,6 +89,38 @@ fn flood_fill(img: &mut RgbaImage, x: u32, y: u32, fill_color: Rgba<u8>) {
     }
 }
 
+fn update_bounds_from_positions(
+    positions_b64: &str,
+    doc_height: u32,
+    min_x: &mut i32,
+    min_y: &mut i32,
+    max_x: &mut i32,
+    max_y: &mut i32,
+) {
+    use base64::{engine::general_purpose, Engine as _};
+    let pos_bytes = general_purpose::STANDARD.decode(positions_b64).unwrap_or_default();
+    for j in (0..pos_bytes.len()).step_by(4) {
+        if j + 3 < pos_bytes.len() {
+            let px = i16::from_le_bytes([pos_bytes[j], pos_bytes[j + 1]]) as i32;
+            let py = doc_height as i32
+                - 1
+                - i16::from_le_bytes([pos_bytes[j + 2], pos_bytes[j + 3]]) as i32;
+            if px < *min_x {
+                *min_x = px;
+            }
+            if py < *min_y {
+                *min_y = py;
+            }
+            if px > *max_x {
+                *max_x = px;
+            }
+            if py > *max_y {
+                *max_y = py;
+            }
+        }
+    }
+}
+
 fn calculate_bounds(
     history: &History,
     doc_width: u32,
@@ -166,6 +198,7 @@ fn calculate_bounds(
                 }
             }
             ToolType::PasteImport | ToolType::Cut | ToolType::LineShape => {
+                let handled_as_meta = action.meta.is_some();
                 if let Some(meta_str) = &action.meta {
                     if let Ok(meta) = serde_json::from_str::<MetaData>(meta_str) {
                         if let (Some(pixels_b64), Some(rect)) = (&meta.pixels, &meta.rect) {
@@ -193,36 +226,88 @@ fn calculate_bounds(
                         }
                     }
                 }
+                if !handled_as_meta && ToolType::from(action.tool) == ToolType::LineShape {
+                    update_bounds_from_positions(
+                        &action.positions,
+                        doc_height,
+                        &mut min_x,
+                        &mut min_y,
+                        &mut max_x,
+                        &mut max_y,
+                    );
+                }
             }
             ToolType::Pen | ToolType::Eraser | ToolType::Selection | ToolType::Bucket => {
-                let pos_bytes = b64.decode(&action.positions).unwrap_or_default();
-                for j in (0..pos_bytes.len()).step_by(4) {
-                    if j + 3 < pos_bytes.len() {
-                        let px = i16::from_le_bytes([pos_bytes[j], pos_bytes[j + 1]]) as i32;
-                        // Y is inverted (bottom-up in .psp files)
-                        let py = doc_height as i32
-                            - 1
-                            - i16::from_le_bytes([pos_bytes[j + 2], pos_bytes[j + 3]]) as i32;
-                        if px < min_x {
-                            min_x = px;
-                        }
-                        if py < min_y {
-                            min_y = py;
-                        }
-                        if px + 1 > max_x {
-                            max_x = px + 1;
-                        }
-                        if py + 1 > max_y {
-                            max_y = py + 1;
-                        }
-                    }
-                }
+                update_bounds_from_positions(
+                    &action.positions,
+                    doc_height,
+                    &mut min_x,
+                    &mut min_y,
+                    &mut max_x,
+                    &mut max_y,
+                );
             }
             _ => {}
         }
     }
 
     (min_x, min_y, max_x, max_y, source_img_opt)
+}
+
+
+fn apply_positions_to_image(
+    tool_type: ToolType,
+    action: &pixel_studio_pro_v2::Action,
+    final_img: &mut RgbaImage,
+    min_x: i32,
+    min_y: i32,
+    img_width: u32,
+    img_height: u32,
+    doc_height: u32,
+    has_data: &mut bool,
+) {
+    use base64::{engine::general_purpose, Engine as _};
+    let pos_bytes = general_purpose::STANDARD.decode(&action.positions).unwrap_or_default();
+    let col_bytes = general_purpose::STANDARD.decode(&action.colors).unwrap_or_default();
+
+    let color = if tool_type == ToolType::Eraser || tool_type == ToolType::Selection || (tool_type == ToolType::LineShape && col_bytes.is_empty()) {
+        Rgba([0, 0, 0, 0])
+    } else if col_bytes.len() >= 4 {
+        Rgba([col_bytes[0], col_bytes[1], col_bytes[2], col_bytes[3]])
+    } else {
+        // For tools like Pen and Bucket that normally have colors, default to transparent if none are provided
+        Rgba([0, 0, 0, 0])
+    };
+
+    // Only skip processing if the tool required colors (Pen/Bucket) but didn't provide any,
+    // and we aren't explicitly erasing (which would provide 0 colors anyway).
+    if (tool_type == ToolType::Pen || tool_type == ToolType::Bucket) && col_bytes.is_empty() {
+        return;
+    }
+
+    for j in (0..pos_bytes.len()).step_by(4) {
+        if j + 3 < pos_bytes.len() {
+            let px = i16::from_le_bytes([pos_bytes[j], pos_bytes[j + 1]]) as i32
+                - min_x;
+            let py = (doc_height as i32
+                - 1
+                - i16::from_le_bytes([pos_bytes[j + 2], pos_bytes[j + 3]]) as i32)
+                - min_y;
+
+            if px >= 0
+                && py >= 0
+                && (px as u32) < img_width
+                && (py as u32) < img_height
+            {
+                if tool_type == ToolType::Pen || tool_type == ToolType::Eraser || tool_type == ToolType::LineShape {
+                    final_img.put_pixel(px as u32, py as u32, color);
+                } else {
+                    flood_fill(final_img, px as u32, py as u32, color);
+                }
+                *has_data = true;
+            }
+        }
+    }
 }
 
 fn replay_actions(
@@ -344,6 +429,7 @@ fn replay_actions(
                 }
                 ToolType::PasteImport | ToolType::Cut | ToolType::LineShape => {
                     // Import/Paste/Cut/LineShape
+                    let handled_as_meta = action.meta.is_some();
                     if let Some(meta_str) = &action.meta {
                         if let Ok(meta) = serde_json::from_str::<MetaData>(meta_str) {
                             if let (Some(pixels_b64), Some(rect)) = (&meta.pixels, &meta.rect) {
@@ -415,72 +501,12 @@ fn replay_actions(
                             }
                         }
                     }
-                }
-                ToolType::Pen | ToolType::Bucket => {
-                    // Pen or Bucket Fill
-                    let pos_bytes = b64.decode(&action.positions).unwrap_or_default();
-                    let col_bytes = b64.decode(&action.colors).unwrap_or_default();
-
-                    if col_bytes.len() >= 4 {
-                        let color = Rgba([col_bytes[0], col_bytes[1], col_bytes[2], col_bytes[3]]);
-                        for j in (0..pos_bytes.len()).step_by(4) {
-                            if j + 3 < pos_bytes.len() {
-                                let px = i16::from_le_bytes([pos_bytes[j], pos_bytes[j + 1]])
-                                    as i32
-                                    - min_x;
-                                let py = (doc_height as i32
-                                    - 1
-                                    - i16::from_le_bytes([pos_bytes[j + 2], pos_bytes[j + 3]])
-                                        as i32)
-                                    - min_y;
-
-                                if px >= 0
-                                    && py >= 0
-                                    && (px as u32) < img_width
-                                    && (py as u32) < img_height
-                                {
-                                    if tool_type == ToolType::Pen {
-                                        final_img.put_pixel(px as u32, py as u32, color);
-                                    } else {
-                                        flood_fill(&mut final_img, px as u32, py as u32, color);
-                                    }
-                                    has_data = true;
-                                }
-                            }
-                        }
+                    if !handled_as_meta && tool_type == ToolType::LineShape {
+                        apply_positions_to_image(tool_type, action, &mut final_img, min_x, min_y, img_width, img_height, doc_height, &mut has_data);
                     }
                 }
-                ToolType::Eraser | ToolType::Selection => {
-                    // Eraser or Bucket Erase
-                    let pos_bytes = b64.decode(&action.positions).unwrap_or_default();
-                    for j in (0..pos_bytes.len()).step_by(4) {
-                        if j + 3 < pos_bytes.len() {
-                            let px =
-                                i16::from_le_bytes([pos_bytes[j], pos_bytes[j + 1]]) as i32 - min_x;
-                            let py = (doc_height as i32
-                                - 1
-                                - i16::from_le_bytes([pos_bytes[j + 2], pos_bytes[j + 3]]) as i32)
-                                - min_y;
-
-                            if px >= 0
-                                && py >= 0
-                                && (px as u32) < img_width
-                                && (py as u32) < img_height
-                            {
-                                if tool_type == ToolType::Eraser {
-                                    final_img.put_pixel(px as u32, py as u32, Rgba([0, 0, 0, 0]));
-                                } else {
-                                    flood_fill(
-                                        &mut final_img,
-                                        px as u32,
-                                        py as u32,
-                                        Rgba([0, 0, 0, 0]),
-                                    );
-                                }
-                                has_data = true;
-                            }
-                        }
-                    }
+                ToolType::Pen | ToolType::Bucket | ToolType::Eraser | ToolType::Selection => {
+                    apply_positions_to_image(tool_type, action, &mut final_img, min_x, min_y, img_width, img_height, doc_height, &mut has_data);
                 }
                 ToolType::Unknown(_) => {
                     // Ignore unknown tools
