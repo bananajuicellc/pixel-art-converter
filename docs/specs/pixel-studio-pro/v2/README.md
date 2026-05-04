@@ -12,6 +12,7 @@ The document follows a hierarchical structure:
 4.  **[Layer](layer.md)**: A single drawing surface within a frame.
 5.  **[Layer Group](layer-group.md)**: A logical grouping of layers for organization.
 6.  **[History & Actions](history.md)**: Encapsulated drawing commands and image data stored within layers.
+7.  **[Tools](tools.md)**: Detailed behavior of individual drawing tools.
 
 ## Key Concepts
 

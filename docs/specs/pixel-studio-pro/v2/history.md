@@ -16,30 +16,61 @@ An individual drawing command.
 
 | Property | Type | Description |
 | :--- | :--- | :--- |
-| `Tool` | Integer | The tool ID used (e.g., `0`: Pen, `1`: Eraser, `2`: Selection, `3`: Bucket, `6`: Line/Shape, `10`: Move, `20`: Paste/Import). |
+| `Tool` | Integer | The tool ID used (see [Tools](tools.md) for a full list). |
 | `ColorIndexes` | Array | (Optional) Indexes of colors used. |
 | `Positions` | String | Base64 encoded coordinate data. |
 | `Colors` | String | Base64 encoded color data (usually RGBA). |
-| `Meta` | String | (Optional) A JSON string containing tool-specific metadata (e.g., `Rect`, `Pixels`). |
+| `Meta` | String | (Optional) A JSON string containing tool-specific metadata (e.g., `Rect`, `Pixels`, `PasteAction`). |
 | `Invalid` | Boolean | Whether the action is considered invalid. |
 
 ### Tool Details
 
-Different tools utilize the properties of the Action object in specific ways:
+Different tools utilize the properties of the Action object in specific ways. For a complete list of tools and their logic, see the **[Tools Specification](tools.md)**.
 
-* **Tool 3 (Paint Bucket)**:
+* **Pen (0) / Eraser (2)**:
+  * `Positions`: Contains an array of `(X, Y)` coordinate pairs.
+  * `Colors`: Contains the color(s) used.
+* **Fill (3)**:
   * `Positions`: Contains a single `(X, Y)` coordinate representing the starting point of the fill.
   * `Colors`: Contains a single 4-byte RGBA value representing the fill color.
-* **Tool 6 (Line/Shape)**:
-  * `Positions`: Contains an array of `(X, Y)` coordinate pairs for all the pixels that make up the shape or line.
-* **Tool 10 (Move)**:
-  * `Positions`: Contains two `(X, Y)` coordinate pairs, likely representing the start and end points of the movement vector.
-  * `Meta`: Contains a JSON string with a rectangle defining the selection bounds, formatted as `{"From":{"X":...,"Y":...},"To":{"X":...,"Y":...}}`.
-* **Tool 20 (Paste / Import)**:
-  * `Meta`: Contains a JSON string detailing the pasted image:
-    * `Rect`: The destination rectangle `{"From": {"X", "Y"}, "To": {"X", "Y"}}`.
-    * `RectSource`: The source rectangle in the original image.
-    * `Pixels`: Base64 encoded PNG image data of the specific pasted region.
+  * `Meta`: Contains the tolerance value as a string (stored in `action.Float`).
+* **Move (10)**:
+  * `Positions`: Contains two `(X, Y)` coordinate pairs representing the movement vector (start and end), and optionally more pairs for specific pixels.
+  * `Meta`: Contains a JSON string with a rectangle defining the selection bounds.
+* **PasteImage (20)**:
+  * `Meta`: Contains a JSON string detailing the `PasteAction`.
+
+### Metadata Structures
+
+The `Meta` field contains JSON-serialized objects. Common structures include:
+
+#### ImageRect
+Defines a rectangular area.
+```json
+{
+  "From": { "X": 0, "Y": 0 },
+  "To": { "X": 10, "Y": 10 }
+}
+```
+*   `X`, `Y`: 16-bit integers.
+*   Note: `Width` and `Height` are calculated as `To.X - From.X` and `To.Y - From.Y`.
+
+#### PasteAction
+Used by `PasteImage` (20) and `Paste` (9).
+```json
+{
+  "Rect": { "From": {...}, "To": {...} },
+  "Buffer": [ ... ],
+  "HasMask": false,
+  "Mask": [ ... ],
+  "HasRectSource": false,
+  "RectSource": { "From": {...}, "To": {...} }
+}
+```
+*   `Rect`: Destination rectangle.
+*   `Buffer`: Array of RGBA colors (Color32).
+*   `Mask`: (Optional) Array of `Position` objects.
+*   `RectSource`: (Optional) Source rectangle.
 
 ### Encoding
 `Positions` and `Colors` use a custom Base64 binary encoding to store coordinate and color arrays efficiently. `Positions` encodes a sequence of 16-bit little-endian signed integers forming `(X, Y)` coordinate pairs, while `Colors` encodes a sequence of 4-byte RGBA values.
