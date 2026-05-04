@@ -300,7 +300,7 @@ fn apply_positions_to_image(
     let pos_bytes = general_purpose::STANDARD.decode(&action.positions).unwrap_or_default();
     let col_bytes = general_purpose::STANDARD.decode(&action.colors).unwrap_or_default();
 
-    let color = if tool_type == ToolType::Eraser || tool_type == ToolType::Selection || (tool_type == ToolType::Clear && col_bytes.is_empty()) || tool_type == ToolType::Cut {
+    let color = if tool_type == ToolType::Eraser || tool_type == ToolType::Selection || (tool_type == ToolType::Clear && col_bytes.is_empty()) || tool_type == ToolType::Cut || (tool_type == ToolType::EraserPen && col_bytes.is_empty()) {
         Rgba([0, 0, 0, 0])
     } else if col_bytes.len() >= 4 {
         Rgba([col_bytes[0], col_bytes[1], col_bytes[2], col_bytes[3]])
@@ -329,7 +329,14 @@ fn apply_positions_to_image(
                 && (px as u32) < img_width
                 && (py as u32) < img_height
             {
-                if tool_type == ToolType::Pen || tool_type == ToolType::Eraser || tool_type == ToolType::Clear || tool_type == ToolType::Cut {
+                if tool_type == ToolType::EraserPen {
+                    let current_color = *final_img.get_pixel(px as u32, py as u32);
+                    if current_color[3] == 0 {
+                        final_img.put_pixel(px as u32, py as u32, color);
+                    } else {
+                        final_img.put_pixel(px as u32, py as u32, Rgba([0, 0, 0, 0]));
+                    }
+                } else if tool_type == ToolType::Pen || tool_type == ToolType::Eraser || tool_type == ToolType::Clear || tool_type == ToolType::Cut {
                     final_img.put_pixel(px as u32, py as u32, color);
                 } else {
                     flood_fill(final_img, px as u32, py as u32, color);
