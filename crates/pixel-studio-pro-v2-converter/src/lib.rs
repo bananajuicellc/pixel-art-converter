@@ -37,18 +37,18 @@ pub enum ToolType {
     Selection,
     Bucket,
     Clear, // 6
-    Cut, // 8
+    Cut,   // 8
     Move,
-    MirrorByX, // 11
-    MirrorByY, // 12
-    FlipByX, // 13
-    FlipByY, // 14
-    RotateLeft, // 15
-    RotateRight, // 16
+    MirrorByX,    // 11
+    MirrorByY,    // 12
+    FlipByX,      // 13
+    FlipByY,      // 14
+    RotateLeft,   // 15
+    RotateRight,  // 16
     ReplaceColor, // 18
-    EraserPen, // 19
-    PasteImport, // 20
-    RotateRect, // 21
+    EraserPen,    // 19
+    PasteImport,  // 20
+    RotateRect,   // 21
     Unknown(u32),
 }
 
@@ -60,7 +60,7 @@ impl From<u32> for ToolType {
             2 => ToolType::Selection,
             3 => ToolType::Bucket,
             6 => ToolType::Clear, // "Clear" in specs, was LineShape
-            8 => ToolType::Cut, // was 21 in previous converter mapping
+            8 => ToolType::Cut,   // was 21 in previous converter mapping
             10 => ToolType::Move,
             11 => ToolType::MirrorByX,
             12 => ToolType::MirrorByY,
@@ -118,8 +118,10 @@ fn update_bounds_from_positions(
     max_x: &mut i32,
     max_y: &mut i32,
 ) {
-    use base64::{engine::general_purpose, Engine as _};
-    let pos_bytes = general_purpose::STANDARD.decode(positions_b64).unwrap_or_default();
+    use base64::{Engine as _, engine::general_purpose};
+    let pos_bytes = general_purpose::STANDARD
+        .decode(positions_b64)
+        .unwrap_or_default();
     for j in (0..pos_bytes.len()).step_by(4) {
         if j + 3 < pos_bytes.len() {
             let px = i16::from_le_bytes([pos_bytes[j], pos_bytes[j + 1]]) as i32;
@@ -175,18 +177,30 @@ fn calculate_bounds(
                 if let Some(meta_str) = &action.meta {
                     if let Ok(meta) = serde_json::from_str::<MetaData>(meta_str) {
                         if let Some(rect) = &meta.rect {
-                            let w = rect.width.unwrap_or_else(|| rect.to.as_ref().map_or(0, |to| to.x - rect.from.x));
-                            let h = rect.height.unwrap_or_else(|| rect.to.as_ref().map_or(0, |to| to.y - rect.from.y));
+                            let w = rect.width.unwrap_or_else(|| {
+                                rect.to.as_ref().map_or(0, |to| to.x - rect.from.x)
+                            });
+                            let h = rect.height.unwrap_or_else(|| {
+                                rect.to.as_ref().map_or(0, |to| to.y - rect.from.y)
+                            });
 
                             let dst_min_x = rect.from.x;
                             let dst_max_x = rect.from.x + h; // swapped width/height
                             let dst_max_y = doc_height as i32 - 1 - rect.from.y;
                             let dst_min_y = dst_max_y - w; // swapped width/height
 
-                            if dst_min_x < min_x { min_x = dst_min_x; }
-                            if dst_min_y < min_y { min_y = dst_min_y; }
-                            if dst_max_x > max_x { max_x = dst_max_x; }
-                            if dst_max_y > max_y { max_y = dst_max_y; }
+                            if dst_min_x < min_x {
+                                min_x = dst_min_x;
+                            }
+                            if dst_min_y < min_y {
+                                min_y = dst_min_y;
+                            }
+                            if dst_max_x > max_x {
+                                max_x = dst_max_x;
+                            }
+                            if dst_max_y > max_y {
+                                max_y = dst_max_y;
+                            }
                         }
                     }
                 }
@@ -267,7 +281,13 @@ fn calculate_bounds(
                     }
                 }
             }
-            ToolType::Pen | ToolType::Eraser | ToolType::Selection | ToolType::Bucket | ToolType::Clear | ToolType::EraserPen | ToolType::Cut => {
+            ToolType::Pen
+            | ToolType::Eraser
+            | ToolType::Selection
+            | ToolType::Bucket
+            | ToolType::Clear
+            | ToolType::EraserPen
+            | ToolType::Cut => {
                 update_bounds_from_positions(
                     &action.positions,
                     doc_height,
@@ -284,7 +304,6 @@ fn calculate_bounds(
     (min_x, min_y, max_x, max_y, source_img_opt)
 }
 
-
 fn apply_positions_to_image(
     tool_type: ToolType,
     action: &pixel_studio_pro_v2::Action,
@@ -296,11 +315,20 @@ fn apply_positions_to_image(
     doc_height: u32,
     has_data: &mut bool,
 ) {
-    use base64::{engine::general_purpose, Engine as _};
-    let pos_bytes = general_purpose::STANDARD.decode(&action.positions).unwrap_or_default();
-    let col_bytes = general_purpose::STANDARD.decode(&action.colors).unwrap_or_default();
+    use base64::{Engine as _, engine::general_purpose};
+    let pos_bytes = general_purpose::STANDARD
+        .decode(&action.positions)
+        .unwrap_or_default();
+    let col_bytes = general_purpose::STANDARD
+        .decode(&action.colors)
+        .unwrap_or_default();
 
-    let color = if tool_type == ToolType::Eraser || tool_type == ToolType::Selection || (tool_type == ToolType::Clear && col_bytes.is_empty()) || tool_type == ToolType::Cut || (tool_type == ToolType::EraserPen && col_bytes.is_empty()) {
+    let color = if tool_type == ToolType::Eraser
+        || tool_type == ToolType::Selection
+        || (tool_type == ToolType::Clear && col_bytes.is_empty())
+        || tool_type == ToolType::Cut
+        || (tool_type == ToolType::EraserPen && col_bytes.is_empty())
+    {
         Rgba([0, 0, 0, 0])
     } else if col_bytes.len() >= 4 {
         Rgba([col_bytes[0], col_bytes[1], col_bytes[2], col_bytes[3]])
@@ -317,18 +345,13 @@ fn apply_positions_to_image(
 
     for j in (0..pos_bytes.len()).step_by(4) {
         if j + 3 < pos_bytes.len() {
-            let px = i16::from_le_bytes([pos_bytes[j], pos_bytes[j + 1]]) as i32
-                - min_x;
+            let px = i16::from_le_bytes([pos_bytes[j], pos_bytes[j + 1]]) as i32 - min_x;
             let py = (doc_height as i32
                 - 1
                 - i16::from_le_bytes([pos_bytes[j + 2], pos_bytes[j + 3]]) as i32)
                 - min_y;
 
-            if px >= 0
-                && py >= 0
-                && (px as u32) < img_width
-                && (py as u32) < img_height
-            {
+            if px >= 0 && py >= 0 && (px as u32) < img_width && (py as u32) < img_height {
                 if tool_type == ToolType::EraserPen {
                     let current_color = *final_img.get_pixel(px as u32, py as u32);
                     if current_color[3] == 0 {
@@ -336,7 +359,11 @@ fn apply_positions_to_image(
                     } else {
                         final_img.put_pixel(px as u32, py as u32, Rgba([0, 0, 0, 0]));
                     }
-                } else if tool_type == ToolType::Pen || tool_type == ToolType::Eraser || tool_type == ToolType::Clear || tool_type == ToolType::Cut {
+                } else if tool_type == ToolType::Pen
+                    || tool_type == ToolType::Eraser
+                    || tool_type == ToolType::Clear
+                    || tool_type == ToolType::Cut
+                {
                     final_img.put_pixel(px as u32, py as u32, color);
                 } else {
                     flood_fill(final_img, px as u32, py as u32, color);
@@ -347,7 +374,16 @@ fn apply_positions_to_image(
     }
 }
 
-fn apply_move_action(action: &pixel_studio_pro_v2::Action, final_img: &mut RgbaImage, min_x: i32, min_y: i32, img_width: u32, img_height: u32, doc_height: u32, has_data: &mut bool) {
+fn apply_move_action(
+    action: &pixel_studio_pro_v2::Action,
+    final_img: &mut RgbaImage,
+    min_x: i32,
+    min_y: i32,
+    img_width: u32,
+    img_height: u32,
+    doc_height: u32,
+    has_data: &mut bool,
+) {
     let pos_bytes = b64.decode(&action.positions).unwrap_or_default();
     if pos_bytes.len() >= 8 {
         let px1 = i16::from_le_bytes([pos_bytes[0], pos_bytes[1]]) as i32;
@@ -375,10 +411,18 @@ fn apply_move_action(action: &pixel_studio_pro_v2::Action, final_img: &mut RgbaI
                             let canvas_x = x - min_x;
                             let canvas_y = y - min_y;
 
-                            if canvas_x >= 0 && canvas_y >= 0 && (canvas_x as u32) < img_width && (canvas_y as u32) < img_height {
+                            if canvas_x >= 0
+                                && canvas_y >= 0
+                                && (canvas_x as u32) < img_width
+                                && (canvas_y as u32) < img_height
+                            {
                                 let p = *final_img.get_pixel(canvas_x as u32, canvas_y as u32);
                                 moved_pixels.push((x, y, p));
-                                final_img.put_pixel(canvas_x as u32, canvas_y as u32, Rgba([0, 0, 0, 0]));
+                                final_img.put_pixel(
+                                    canvas_x as u32,
+                                    canvas_y as u32,
+                                    Rgba([0, 0, 0, 0]),
+                                );
                                 *has_data = true;
                             }
                         }
@@ -388,7 +432,11 @@ fn apply_move_action(action: &pixel_studio_pro_v2::Action, final_img: &mut RgbaI
                         let shifted_x = x + dx - min_x;
                         let shifted_y = y + dy - min_y;
 
-                        if shifted_x >= 0 && shifted_y >= 0 && (shifted_x as u32) < img_width && (shifted_y as u32) < img_height {
+                        if shifted_x >= 0
+                            && shifted_y >= 0
+                            && (shifted_x as u32) < img_width
+                            && (shifted_y as u32) < img_height
+                        {
                             final_img.put_pixel(shifted_x as u32, shifted_y as u32, p);
                             *has_data = true;
                         }
@@ -399,7 +447,17 @@ fn apply_move_action(action: &pixel_studio_pro_v2::Action, final_img: &mut RgbaI
     }
 }
 
-fn apply_paste_import_action(tool_type: ToolType, action: &pixel_studio_pro_v2::Action, final_img: &mut RgbaImage, min_x: i32, min_y: i32, img_width: u32, img_height: u32, doc_height: u32, has_data: &mut bool) {
+fn apply_paste_import_action(
+    tool_type: ToolType,
+    action: &pixel_studio_pro_v2::Action,
+    final_img: &mut RgbaImage,
+    min_x: i32,
+    min_y: i32,
+    img_width: u32,
+    img_height: u32,
+    doc_height: u32,
+    has_data: &mut bool,
+) {
     if let Some(meta_str) = &action.meta {
         if let Ok(meta) = serde_json::from_str::<MetaData>(meta_str) {
             if let (Some(pixels_b64), Some(rect)) = (&meta.pixels, &meta.rect) {
@@ -407,27 +465,37 @@ fn apply_paste_import_action(tool_type: ToolType, action: &pixel_studio_pro_v2::
                     if let Ok(img) = image::load_from_memory(&img_data) {
                         let rgba_patch = img.to_rgba8();
                         let start_x = rect.from.x - min_x;
-                        let start_y = (doc_height as i32 - rect.from.y - rgba_patch.height() as i32) - min_y;
+                        let start_y =
+                            (doc_height as i32 - rect.from.y - rgba_patch.height() as i32) - min_y;
 
                         for y in 0..rgba_patch.height() {
                             for x in 0..rgba_patch.width() {
                                 let dst_x = start_x + (x as i32);
                                 let dst_y = start_y + (y as i32);
 
-                                if dst_x >= 0 && dst_y >= 0 && (dst_x as u32) < img_width && (dst_y as u32) < img_height {
+                                if dst_x >= 0
+                                    && dst_y >= 0
+                                    && (dst_x as u32) < img_width
+                                    && (dst_y as u32) < img_height
+                                {
                                     let p = rgba_patch.get_pixel(x, y);
 
                                     if tool_type == ToolType::PasteImport {
                                         if p[3] > 0 {
                                             use image::Pixel;
-                                            let mut bg_p = *final_img.get_pixel(dst_x as u32, dst_y as u32);
+                                            let mut bg_p =
+                                                *final_img.get_pixel(dst_x as u32, dst_y as u32);
                                             bg_p.blend(p);
                                             final_img.put_pixel(dst_x as u32, dst_y as u32, bg_p);
                                             *has_data = true;
                                         }
                                     } else {
                                         if p[3] == 0 {
-                                            final_img.put_pixel(dst_x as u32, dst_y as u32, Rgba([0, 0, 0, 0]));
+                                            final_img.put_pixel(
+                                                dst_x as u32,
+                                                dst_y as u32,
+                                                Rgba([0, 0, 0, 0]),
+                                            );
                                             *has_data = true;
                                         } else {
                                             final_img.put_pixel(dst_x as u32, dst_y as u32, *p);
@@ -444,14 +512,30 @@ fn apply_paste_import_action(tool_type: ToolType, action: &pixel_studio_pro_v2::
     }
 }
 
-fn apply_transform_action(tool_type: ToolType, action: &pixel_studio_pro_v2::Action, final_img: &mut RgbaImage, min_x: i32, min_y: i32, img_width: u32, img_height: u32, doc_height: u32, has_data: &mut bool) {
+fn apply_transform_action(
+    tool_type: ToolType,
+    action: &pixel_studio_pro_v2::Action,
+    final_img: &mut RgbaImage,
+    min_x: i32,
+    min_y: i32,
+    img_width: u32,
+    img_height: u32,
+    doc_height: u32,
+    has_data: &mut bool,
+) {
     if let Some(meta_str) = &action.meta {
         if let Ok(meta) = serde_json::from_str::<MetaData>(meta_str) {
             if let Some(rect) = &meta.rect {
                 let sel_min_x = rect.from.x - min_x;
-                let sel_max_x = rect.to.as_ref().map_or(sel_min_x, |to| to.x - min_x).max(sel_min_x + rect.width.unwrap_or(0) - 1);
+                let sel_max_x = rect
+                    .to
+                    .as_ref()
+                    .map_or(sel_min_x, |to| to.x - min_x)
+                    .max(sel_min_x + rect.width.unwrap_or(0) - 1);
                 let mut sel_min_y = (doc_height as i32 - 1 - rect.from.y) - min_y;
-                let mut sel_max_y = (doc_height as i32 - 1 - rect.to.as_ref().map_or(rect.from.y, |to| to.y)) - min_y;
+                let mut sel_max_y =
+                    (doc_height as i32 - 1 - rect.to.as_ref().map_or(rect.from.y, |to| to.y))
+                        - min_y;
 
                 if sel_min_y > sel_max_y {
                     std::mem::swap(&mut sel_min_y, &mut sel_max_y);
@@ -463,12 +547,20 @@ fn apply_transform_action(tool_type: ToolType, action: &pixel_studio_pro_v2::Act
 
                 let temp_img = final_img.clone();
 
-                if tool_type == ToolType::RotateLeft || tool_type == ToolType::RotateRight || tool_type == ToolType::FlipByX || tool_type == ToolType::FlipByY {
+                if tool_type == ToolType::RotateLeft
+                    || tool_type == ToolType::RotateRight
+                    || tool_type == ToolType::FlipByX
+                    || tool_type == ToolType::FlipByY
+                {
                     for y in 0..sel_h {
                         for x in 0..sel_w {
                             let src_x = sel_min_x + x;
                             let src_y = sel_min_y + y;
-                            if src_x >= 0 && src_y >= 0 && (src_x as u32) < img_width && (src_y as u32) < img_height {
+                            if src_x >= 0
+                                && src_y >= 0
+                                && (src_x as u32) < img_width
+                                && (src_y as u32) < img_height
+                            {
                                 final_img.put_pixel(src_x as u32, src_y as u32, Rgba([0, 0, 0, 0]));
                             }
                         }
@@ -479,28 +571,50 @@ fn apply_transform_action(tool_type: ToolType, action: &pixel_studio_pro_v2::Act
                     for x in 0..sel_w {
                         let src_x = sel_min_x + x;
                         let src_y = sel_min_y + y;
-                        if src_x >= 0 && src_y >= 0 && (src_x as u32) < img_width && (src_y as u32) < img_height {
+                        if src_x >= 0
+                            && src_y >= 0
+                            && (src_x as u32) < img_width
+                            && (src_y as u32) < img_height
+                        {
                             let color = *temp_img.get_pixel(src_x as u32, src_y as u32);
                             if color[3] > 0 {
                                 let (dst_x, dst_y) = match tool_type {
-                                    ToolType::MirrorByX => (sel_min_x + (sel_w - 1 - x), sel_min_y + y),
-                                    ToolType::MirrorByY => (sel_min_x + x, sel_min_y + (sel_h - 1 - y)),
-                                    ToolType::FlipByX => (sel_min_x + (sel_w - 1 - x), sel_min_y + y),
-                                    ToolType::FlipByY => (sel_min_x + x, sel_min_y + (sel_h - 1 - y)),
+                                    ToolType::MirrorByX => {
+                                        (sel_min_x + (sel_w - 1 - x), sel_min_y + y)
+                                    }
+                                    ToolType::MirrorByY => {
+                                        (sel_min_x + x, sel_min_y + (sel_h - 1 - y))
+                                    }
+                                    ToolType::FlipByX => {
+                                        (sel_min_x + (sel_w - 1 - x), sel_min_y + y)
+                                    }
+                                    ToolType::FlipByY => {
+                                        (sel_min_x + x, sel_min_y + (sel_h - 1 - y))
+                                    }
                                     ToolType::RotateRight => {
                                         let new_x = y;
                                         let new_y = sel_w - 1 - x;
-                                        (new_x + sel_min_x + (sel_w - sel_h) / 2, new_y + sel_min_y + (sel_h - sel_w) / 2)
-                                    },
+                                        (
+                                            new_x + sel_min_x + (sel_w - sel_h) / 2,
+                                            new_y + sel_min_y + (sel_h - sel_w) / 2,
+                                        )
+                                    }
                                     ToolType::RotateLeft => {
                                         let new_x = sel_h - 1 - y;
                                         let new_y = x;
-                                        (new_x + sel_min_x + (sel_w - sel_h) / 2, new_y + sel_min_y + (sel_h - sel_w) / 2)
-                                    },
+                                        (
+                                            new_x + sel_min_x + (sel_w - sel_h) / 2,
+                                            new_y + sel_min_y + (sel_h - sel_w) / 2,
+                                        )
+                                    }
                                     _ => (src_x, src_y),
                                 };
 
-                                if dst_x >= 0 && dst_y >= 0 && (dst_x as u32) < img_width && (dst_y as u32) < img_height {
+                                if dst_x >= 0
+                                    && dst_y >= 0
+                                    && (dst_x as u32) < img_width
+                                    && (dst_y as u32) < img_height
+                                {
                                     final_img.put_pixel(dst_x as u32, dst_y as u32, color);
                                     *has_data = true;
                                 }
@@ -513,14 +627,32 @@ fn apply_transform_action(tool_type: ToolType, action: &pixel_studio_pro_v2::Act
     }
 }
 
-fn apply_replace_color_action(action: &pixel_studio_pro_v2::Action, final_img: &mut RgbaImage, min_x: i32, min_y: i32, img_width: u32, img_height: u32, doc_height: u32) {
-    use base64::{engine::general_purpose, Engine as _};
-    let pos_bytes = general_purpose::STANDARD.decode(&action.positions).unwrap_or_default();
-    let col_bytes = general_purpose::STANDARD.decode(&action.colors).unwrap_or_default();
+fn apply_replace_color_action(
+    action: &pixel_studio_pro_v2::Action,
+    final_img: &mut RgbaImage,
+    min_x: i32,
+    min_y: i32,
+    img_width: u32,
+    img_height: u32,
+    doc_height: u32,
+) {
+    use base64::{Engine as _, engine::general_purpose};
+    let pos_bytes = general_purpose::STANDARD
+        .decode(&action.positions)
+        .unwrap_or_default();
+    let col_bytes = general_purpose::STANDARD
+        .decode(&action.colors)
+        .unwrap_or_default();
     if pos_bytes.len() >= 4 && col_bytes.len() >= 4 {
         let target_x = i16::from_le_bytes([pos_bytes[0], pos_bytes[1]]) as i32 - min_x;
-        let target_y = (doc_height as i32 - 1 - i16::from_le_bytes([pos_bytes[2], pos_bytes[3]]) as i32) - min_y;
-        if target_x >= 0 && target_y >= 0 && (target_x as u32) < img_width && (target_y as u32) < img_height {
+        let target_y =
+            (doc_height as i32 - 1 - i16::from_le_bytes([pos_bytes[2], pos_bytes[3]]) as i32)
+                - min_y;
+        if target_x >= 0
+            && target_y >= 0
+            && (target_x as u32) < img_width
+            && (target_y as u32) < img_height
+        {
             let target_color = *final_img.get_pixel(target_x as u32, target_y as u32);
             let new_color = Rgba([col_bytes[0], col_bytes[1], col_bytes[2], col_bytes[3]]);
 
@@ -581,19 +713,77 @@ fn replay_actions(
             let tool_type = ToolType::from(action.tool);
             match tool_type {
                 ToolType::Move => {
-                    apply_move_action(action, &mut final_img, min_x, min_y, img_width, img_height, doc_height, &mut has_data);
+                    apply_move_action(
+                        action,
+                        &mut final_img,
+                        min_x,
+                        min_y,
+                        img_width,
+                        img_height,
+                        doc_height,
+                        &mut has_data,
+                    );
                 }
                 ToolType::PasteImport | ToolType::RotateRect => {
-                    apply_paste_import_action(tool_type, action, &mut final_img, min_x, min_y, img_width, img_height, doc_height, &mut has_data);
+                    apply_paste_import_action(
+                        tool_type,
+                        action,
+                        &mut final_img,
+                        min_x,
+                        min_y,
+                        img_width,
+                        img_height,
+                        doc_height,
+                        &mut has_data,
+                    );
                 }
-                ToolType::Pen | ToolType::Bucket | ToolType::Eraser | ToolType::Selection | ToolType::Clear | ToolType::EraserPen | ToolType::Cut => {
-                    apply_positions_to_image(tool_type, action, &mut final_img, min_x, min_y, img_width, img_height, doc_height, &mut has_data);
+                ToolType::Pen
+                | ToolType::Bucket
+                | ToolType::Eraser
+                | ToolType::Selection
+                | ToolType::Clear
+                | ToolType::EraserPen
+                | ToolType::Cut => {
+                    apply_positions_to_image(
+                        tool_type,
+                        action,
+                        &mut final_img,
+                        min_x,
+                        min_y,
+                        img_width,
+                        img_height,
+                        doc_height,
+                        &mut has_data,
+                    );
                 }
-                ToolType::MirrorByX | ToolType::MirrorByY | ToolType::FlipByX | ToolType::FlipByY | ToolType::RotateLeft | ToolType::RotateRight => {
-                    apply_transform_action(tool_type, action, &mut final_img, min_x, min_y, img_width, img_height, doc_height, &mut has_data);
+                ToolType::MirrorByX
+                | ToolType::MirrorByY
+                | ToolType::FlipByX
+                | ToolType::FlipByY
+                | ToolType::RotateLeft
+                | ToolType::RotateRight => {
+                    apply_transform_action(
+                        tool_type,
+                        action,
+                        &mut final_img,
+                        min_x,
+                        min_y,
+                        img_width,
+                        img_height,
+                        doc_height,
+                        &mut has_data,
+                    );
                 }
                 ToolType::ReplaceColor => {
-                    apply_replace_color_action(action, &mut final_img, min_x, min_y, img_width, img_height, doc_height);
+                    apply_replace_color_action(
+                        action,
+                        &mut final_img,
+                        min_x,
+                        min_y,
+                        img_width,
+                        img_height,
+                        doc_height,
+                    );
                 }
                 ToolType::Unknown(_) => {
                     // Ignore unknown tools
