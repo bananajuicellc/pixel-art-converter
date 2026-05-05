@@ -25,13 +25,21 @@ fn main() -> Result<()> {
             .is_some_and(|ext| ext.eq_ignore_ascii_case("psp"))
     {
         handle_psp_format(&cli.input_path)?
+    } else if cli.input_path.is_file()
+        && cli
+            .input_path
+            .extension()
+            .and_then(|e| e.to_str())
+            .is_some_and(|ext| ext.eq_ignore_ascii_case("psd"))
+    {
+        handle_psd_format(&cli.input_path)?
     } else if cli.input_path.join("document.json").exists() {
         handle_modern_format(&cli.input_path)?
     } else if cli.input_path.join("DocumentInfo.plist").exists() {
         handle_legacy_format(&cli.input_path)?
     } else {
         return Err(anyhow!(
-            "No valid .psp file or document.json/DocumentInfo.plist found in the given path"
+            "No valid .psp, .psd file, or document.json/DocumentInfo.plist found in the given path"
         ));
     };
 
@@ -106,4 +114,9 @@ fn handle_psp_format(psp_path: &Path) -> Result<pixel_art::Document> {
         serde_json::from_str(&json_str).context("Unable to parse .psp JSON document")?;
 
     pixel_studio_pro_v2_converter::convert(doc_psp)
+}
+
+fn handle_psd_format(psd_path: &Path) -> Result<pixel_art::Document> {
+    let bytes = fs::read(psd_path)?;
+    psd_converter::convert(&bytes).context("Failed to parse .psd file")
 }
