@@ -33,22 +33,35 @@ struct PointData {
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum ToolType {
     Pen,
+    Pipette,
     Eraser,
-    Selection,
-    Bucket,
-    Clear, // 6
-    Cut,   // 8
+    Fill,
+    MoveCamera,
+    GenericTool,
+    Clear,
+    Copy,
+    Cut,
+    Paste,
     Move,
-    MirrorByX,    // 11
-    MirrorByY,    // 12
-    FlipByX,      // 13
-    FlipByY,      // 14
-    RotateLeft,   // 15
-    RotateRight,  // 16
-    ReplaceColor, // 18
-    EraserPen,    // 19
-    PasteImport,  // 20
-    RotateRect,   // 21
+    MirrorByX,
+    MirrorByY,
+    FlipByX,
+    FlipByY,
+    RotateLeft,
+    RotateRight,
+    DotPen,
+    ReplaceColor,
+    EraserPen,
+    PasteImage,
+    RotateRect,
+    DitheringPen,
+    MagicWand,
+    ColorAdjustment,
+    Brush,
+    PixelSelect,
+    Lasso,
+    Cursor,
+    OutlineTool,
     Unknown(u32),
 }
 
@@ -56,11 +69,15 @@ impl From<u32> for ToolType {
     fn from(value: u32) -> Self {
         match value {
             0 => ToolType::Pen,
-            1 => ToolType::Eraser,
-            2 => ToolType::Selection,
-            3 => ToolType::Bucket,
-            6 => ToolType::Clear, // "Clear" in specs, was LineShape
-            8 => ToolType::Cut,   // was 21 in previous converter mapping
+            1 => ToolType::Pipette,
+            2 => ToolType::Eraser,
+            3 => ToolType::Fill,
+            4 => ToolType::MoveCamera,
+            5 => ToolType::GenericTool,
+            6 => ToolType::Clear,
+            7 => ToolType::Copy,
+            8 => ToolType::Cut,
+            9 => ToolType::Paste,
             10 => ToolType::Move,
             11 => ToolType::MirrorByX,
             12 => ToolType::MirrorByY,
@@ -68,10 +85,19 @@ impl From<u32> for ToolType {
             14 => ToolType::FlipByY,
             15 => ToolType::RotateLeft,
             16 => ToolType::RotateRight,
+            17 => ToolType::DotPen,
             18 => ToolType::ReplaceColor,
             19 => ToolType::EraserPen,
-            20 => ToolType::PasteImport,
+            20 => ToolType::PasteImage,
             21 => ToolType::RotateRect,
+            22 => ToolType::DitheringPen,
+            23 => ToolType::MagicWand,
+            24 => ToolType::ColorAdjustment,
+            25 => ToolType::Brush,
+            26 => ToolType::PixelSelect,
+            27 => ToolType::Lasso,
+            28 => ToolType::Cursor,
+            29 => ToolType::OutlineTool,
             _ => ToolType::Unknown(value),
         }
     }
@@ -252,7 +278,7 @@ fn calculate_bounds(
                     }
                 }
             }
-            ToolType::PasteImport | ToolType::RotateRect => {
+            ToolType::PasteImage | ToolType::RotateRect => {
                 if let Some(meta_str) = &action.meta {
                     if let Ok(meta) = serde_json::from_str::<MetaData>(meta_str) {
                         if let (Some(pixels_b64), Some(rect)) = (&meta.pixels, &meta.rect) {
@@ -282,9 +308,12 @@ fn calculate_bounds(
                 }
             }
             ToolType::Pen
+            | ToolType::DotPen
+            | ToolType::DitheringPen
+            | ToolType::Brush
+            | ToolType::OutlineTool
             | ToolType::Eraser
-            | ToolType::Selection
-            | ToolType::Bucket
+            | ToolType::Fill
             | ToolType::Clear
             | ToolType::EraserPen
             | ToolType::Cut => {
@@ -324,7 +353,6 @@ fn apply_positions_to_image(
         .unwrap_or_default();
 
     let color = if tool_type == ToolType::Eraser
-        || tool_type == ToolType::Selection
         || (tool_type == ToolType::Clear && col_bytes.is_empty())
         || tool_type == ToolType::Cut
         || (tool_type == ToolType::EraserPen && col_bytes.is_empty())
@@ -333,13 +361,20 @@ fn apply_positions_to_image(
     } else if col_bytes.len() >= 4 {
         Rgba([col_bytes[0], col_bytes[1], col_bytes[2], col_bytes[3]])
     } else {
-        // For tools like Pen and Bucket that normally have colors, default to transparent if none are provided
+        // For drawing tools that normally have colors, default to transparent if none are provided
         Rgba([0, 0, 0, 0])
     };
 
-    // Only skip processing if the tool required colors (Pen/Bucket) but didn't provide any,
+    // Only skip processing if the tool required colors but didn't provide any,
     // and we aren't explicitly erasing (which would provide 0 colors anyway).
-    if (tool_type == ToolType::Pen || tool_type == ToolType::Bucket) && col_bytes.is_empty() {
+    if (tool_type == ToolType::Pen
+        || tool_type == ToolType::DotPen
+        || tool_type == ToolType::DitheringPen
+        || tool_type == ToolType::Brush
+        || tool_type == ToolType::OutlineTool
+        || tool_type == ToolType::Fill)
+        && col_bytes.is_empty()
+    {
         return;
     }
 
@@ -360,12 +395,16 @@ fn apply_positions_to_image(
                         final_img.put_pixel(px as u32, py as u32, Rgba([0, 0, 0, 0]));
                     }
                 } else if tool_type == ToolType::Pen
+                    || tool_type == ToolType::DotPen
+                    || tool_type == ToolType::DitheringPen
+                    || tool_type == ToolType::Brush
+                    || tool_type == ToolType::OutlineTool
                     || tool_type == ToolType::Eraser
                     || tool_type == ToolType::Clear
                     || tool_type == ToolType::Cut
                 {
                     final_img.put_pixel(px as u32, py as u32, color);
-                } else {
+                } else if tool_type == ToolType::Fill {
                     flood_fill(final_img, px as u32, py as u32, color);
                 }
                 *has_data = true;
@@ -480,7 +519,7 @@ fn apply_paste_import_action(
                                 {
                                     let p = rgba_patch.get_pixel(x, y);
 
-                                    if tool_type == ToolType::PasteImport {
+                                    if tool_type == ToolType::PasteImage {
                                         if p[3] > 0 {
                                             use image::Pixel;
                                             let mut bg_p =
@@ -724,7 +763,7 @@ fn replay_actions(
                         &mut has_data,
                     );
                 }
-                ToolType::PasteImport | ToolType::RotateRect => {
+                ToolType::PasteImage | ToolType::RotateRect => {
                     apply_paste_import_action(
                         tool_type,
                         action,
@@ -738,9 +777,12 @@ fn replay_actions(
                     );
                 }
                 ToolType::Pen
-                | ToolType::Bucket
+                | ToolType::DotPen
+                | ToolType::DitheringPen
+                | ToolType::Brush
+                | ToolType::OutlineTool
+                | ToolType::Fill
                 | ToolType::Eraser
-                | ToolType::Selection
                 | ToolType::Clear
                 | ToolType::EraserPen
                 | ToolType::Cut => {
@@ -785,8 +827,18 @@ fn replay_actions(
                         doc_height,
                     );
                 }
-                ToolType::Unknown(_) => {
-                    // Ignore unknown tools
+                ToolType::Pipette
+                | ToolType::MoveCamera
+                | ToolType::GenericTool
+                | ToolType::Copy
+                | ToolType::Paste
+                | ToolType::MagicWand
+                | ToolType::ColorAdjustment
+                | ToolType::PixelSelect
+                | ToolType::Lasso
+                | ToolType::Cursor
+                | ToolType::Unknown(_) => {
+                    // Ignore these UI/selection tools or unknown tools
                 }
             }
         }
