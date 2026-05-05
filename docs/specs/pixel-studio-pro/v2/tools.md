@@ -43,13 +43,18 @@ The following tools are defined in the `Tool` enum (indices in parentheses):
 
 The following pseudocode describes how `History.PerformAction` applies each tool to the pixel buffer.
 
-### Pen / DitheringPen
+### Pen / DotPen / DitheringPen / Brush
 ```python
-def apply_pen(pixels, action):
+def apply_drawing_tool(pixels, action):
+    # Used by Pen, DotPen, DitheringPen, and Brush.
+    # These tools record specific pixel changes in action.Positions.
+    
     if len(action.Colors) == 1:
+        # Optimized path: all pixels have the same color
         for pos in action.Positions:
             pixels.set_pixel(pos.X, pos.Y, action.Colors[0])
     else:
+        # Each position has a corresponding color index
         for i, pos in enumerate(action.Positions):
             color = action.Colors[action.ColorIndexes[i]]
             pixels.set_pixel(pos.X, pos.Y, color)
@@ -58,6 +63,7 @@ def apply_pen(pixels, action):
 ### Eraser
 ```python
 def apply_eraser(pixels, action):
+    # Similar to Pen, but sets pixels to transparent black (0, 0, 0, 0)
     for pos in action.Positions:
         pixels.set_pixel(pos.X, pos.Y, transparent_black)
 ```
@@ -65,15 +71,27 @@ def apply_eraser(pixels, action):
 ### EraserPen
 ```python
 def apply_eraser_pen(pixels, action):
+    # Toggles between drawing and erasing based on current pixel state
     for pos in action.Positions:
         current_color = pixels.get_pixel(pos.X, pos.Y)
         if current_color.a == 0:
-            # If empty, draw with color
+            # If empty, draw with the first color in the palette
             pixels.set_pixel(pos.X, pos.Y, action.Colors[0])
         else:
             # If not empty, erase
             pixels.set_pixel(pos.X, pos.Y, transparent_black)
 ```
+
+### OutlineTool
+```python
+def apply_outline(pixels, action):
+    # The OutlineTool typically generates a set of pixel changes
+    # that are stored and applied identically to the Pen tool.
+    apply_drawing_tool(pixels, action)
+```
+
+### Selection Tools (MagicWand / PixelSelect / Lasso)
+These tools typically do not modify the pixel buffer directly via `History`. Instead, they modify the document's selection state. If they are stored in history, they likely store the resulting selection mask in `action.Positions`.
 
 ### Fill
 ```python
