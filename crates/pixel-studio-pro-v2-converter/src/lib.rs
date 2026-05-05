@@ -30,79 +30,6 @@ struct PointData {
     y: i32,
 }
 
-#[derive(Debug, PartialEq, Eq, Clone, Copy)]
-pub enum ToolType {
-    Pen,
-    Pipette,
-    Eraser,
-    Fill,
-    MoveCamera,
-    GenericTool,
-    Clear,
-    Copy,
-    Cut,
-    Paste,
-    Move,
-    MirrorByX,
-    MirrorByY,
-    FlipByX,
-    FlipByY,
-    RotateLeft,
-    RotateRight,
-    DotPen,
-    ReplaceColor,
-    EraserPen,
-    PasteImage,
-    RotateRect,
-    DitheringPen,
-    MagicWand,
-    ColorAdjustment,
-    Brush,
-    PixelSelect,
-    Lasso,
-    Cursor,
-    OutlineTool,
-    Unknown(u32),
-}
-
-impl From<u32> for ToolType {
-    fn from(value: u32) -> Self {
-        match value {
-            0 => ToolType::Pen,
-            1 => ToolType::Pipette,
-            2 => ToolType::Eraser,
-            3 => ToolType::Fill,
-            4 => ToolType::MoveCamera,
-            5 => ToolType::GenericTool,
-            6 => ToolType::Clear,
-            7 => ToolType::Copy,
-            8 => ToolType::Cut,
-            9 => ToolType::Paste,
-            10 => ToolType::Move,
-            11 => ToolType::MirrorByX,
-            12 => ToolType::MirrorByY,
-            13 => ToolType::FlipByX,
-            14 => ToolType::FlipByY,
-            15 => ToolType::RotateLeft,
-            16 => ToolType::RotateRight,
-            17 => ToolType::DotPen,
-            18 => ToolType::ReplaceColor,
-            19 => ToolType::EraserPen,
-            20 => ToolType::PasteImage,
-            21 => ToolType::RotateRect,
-            22 => ToolType::DitheringPen,
-            23 => ToolType::MagicWand,
-            24 => ToolType::ColorAdjustment,
-            25 => ToolType::Brush,
-            26 => ToolType::PixelSelect,
-            27 => ToolType::Lasso,
-            28 => ToolType::Cursor,
-            29 => ToolType::OutlineTool,
-            _ => ToolType::Unknown(value),
-        }
-    }
-}
-
 fn flood_fill(img: &mut RgbaImage, x: u32, y: u32, fill_color: Rgba<u8>) {
     if x >= img.width() || y >= img.height() {
         return;
@@ -198,135 +125,137 @@ fn calculate_bounds(
 
     let history_index = history.index as usize;
     for action in history.actions.iter().take(history_index) {
-        match ToolType::from(action.tool) {
-            ToolType::RotateLeft | ToolType::RotateRight => {
-                if let Some(meta_str) = &action.meta {
-                    if let Ok(meta) = serde_json::from_str::<MetaData>(meta_str) {
-                        if let Some(rect) = &meta.rect {
-                            let w = rect.width.unwrap_or_else(|| {
-                                rect.to.as_ref().map_or(0, |to| to.x - rect.from.x)
-                            });
-                            let h = rect.height.unwrap_or_else(|| {
-                                rect.to.as_ref().map_or(0, |to| to.y - rect.from.y)
-                            });
-
-                            let dst_min_x = rect.from.x;
-                            let dst_max_x = rect.from.x + h; // swapped width/height
-                            let dst_max_y = doc_height as i32 - 1 - rect.from.y;
-                            let dst_min_y = dst_max_y - w; // swapped width/height
-
-                            if dst_min_x < min_x {
-                                min_x = dst_min_x;
-                            }
-                            if dst_min_y < min_y {
-                                min_y = dst_min_y;
-                            }
-                            if dst_max_x > max_x {
-                                max_x = dst_max_x;
-                            }
-                            if dst_max_y > max_y {
-                                max_y = dst_max_y;
-                            }
-                        }
-                    }
-                }
-            }
-            ToolType::Move => {
-                let pos_bytes = b64.decode(&action.positions).unwrap_or_default();
-                if pos_bytes.len() >= 8 {
-                    let px1 = i16::from_le_bytes([pos_bytes[0], pos_bytes[1]]) as i32;
-                    let py1 = doc_height as i32
-                        - 1
-                        - i16::from_le_bytes([pos_bytes[2], pos_bytes[3]]) as i32;
-                    let px2 = i16::from_le_bytes([pos_bytes[4], pos_bytes[5]]) as i32;
-                    let py2 = doc_height as i32
-                        - 1
-                        - i16::from_le_bytes([pos_bytes[6], pos_bytes[7]]) as i32;
-                    let dx = px2 - px1;
-                    let dy = py2 - py1;
-
+        if let Ok(tool_type) = pixel_studio_pro_v2::Tool::try_from(action.tool) {
+            match tool_type {
+                pixel_studio_pro_v2::Tool::RotateLeft | pixel_studio_pro_v2::Tool::RotateRight => {
                     if let Some(meta_str) = &action.meta {
                         if let Ok(meta) = serde_json::from_str::<MetaData>(meta_str) {
-                            if let (Some(from), Some(to)) = (&meta.from, &meta.to) {
-                                let sel_min_x = from.x.min(to.x);
-                                let sel_max_x = from.x.max(to.x);
-                                let sel_min_y = from.y.min(to.y);
-                                let sel_max_y = from.y.max(to.y);
+                            if let Some(rect) = &meta.rect {
+                                let w = rect.width.unwrap_or_else(|| {
+                                    rect.to.as_ref().map_or(0, |to| to.x - rect.from.x)
+                                });
+                                let h = rect.height.unwrap_or_else(|| {
+                                    rect.to.as_ref().map_or(0, |to| to.y - rect.from.y)
+                                });
 
-                                let top_down_min_y = doc_height as i32 - 1 - sel_max_y;
-                                let top_down_max_y = doc_height as i32 - 1 - sel_min_y;
+                                let dst_min_x = rect.from.x;
+                                let dst_max_x = rect.from.x + h; // swapped width/height
+                                let dst_max_y = doc_height as i32 - 1 - rect.from.y;
+                                let dst_min_y = dst_max_y - w; // swapped width/height
 
-                                let shifted_min_x = sel_min_x + dx;
-                                let shifted_max_x = sel_max_x + dx;
-                                let shifted_min_y = top_down_min_y + dy;
-                                let shifted_max_y = top_down_max_y + dy;
-
-                                if shifted_min_x < min_x {
-                                    min_x = shifted_min_x;
+                                if dst_min_x < min_x {
+                                    min_x = dst_min_x;
                                 }
-                                if shifted_max_x > max_x {
-                                    max_x = shifted_max_x;
+                                if dst_min_y < min_y {
+                                    min_y = dst_min_y;
                                 }
-                                if shifted_min_y < min_y {
-                                    min_y = shifted_min_y;
+                                if dst_max_x > max_x {
+                                    max_x = dst_max_x;
                                 }
-                                if shifted_max_y > max_y {
-                                    max_y = shifted_max_y;
+                                if dst_max_y > max_y {
+                                    max_y = dst_max_y;
                                 }
                             }
                         }
                     }
                 }
-            }
-            ToolType::PasteImage | ToolType::RotateRect => {
-                if let Some(meta_str) = &action.meta {
-                    if let Ok(meta) = serde_json::from_str::<MetaData>(meta_str) {
-                        if let (Some(pixels_b64), Some(rect)) = (&meta.pixels, &meta.rect) {
-                            if let Ok(img_data) = b64.decode(pixels_b64) {
-                                if let Ok(img) = image::load_from_memory(&img_data) {
-                                    let dst_min_x = rect.from.x;
-                                    let dst_max_x = rect.from.x + img.width() as i32;
-                                    // Y is inverted (bottom-up in .psp files)
-                                    let dst_max_y = doc_height as i32 - rect.from.y;
-                                    let dst_min_y = dst_max_y - img.height() as i32;
-                                    if dst_min_x < min_x {
-                                        min_x = dst_min_x;
+                pixel_studio_pro_v2::Tool::Move => {
+                    let pos_bytes = b64.decode(&action.positions).unwrap_or_default();
+                    if pos_bytes.len() >= 8 {
+                        let px1 = i16::from_le_bytes([pos_bytes[0], pos_bytes[1]]) as i32;
+                        let py1 = doc_height as i32
+                            - 1
+                            - i16::from_le_bytes([pos_bytes[2], pos_bytes[3]]) as i32;
+                        let px2 = i16::from_le_bytes([pos_bytes[4], pos_bytes[5]]) as i32;
+                        let py2 = doc_height as i32
+                            - 1
+                            - i16::from_le_bytes([pos_bytes[6], pos_bytes[7]]) as i32;
+                        let dx = px2 - px1;
+                        let dy = py2 - py1;
+
+                        if let Some(meta_str) = &action.meta {
+                            if let Ok(meta) = serde_json::from_str::<MetaData>(meta_str) {
+                                if let (Some(from), Some(to)) = (&meta.from, &meta.to) {
+                                    let sel_min_x = from.x.min(to.x);
+                                    let sel_max_x = from.x.max(to.x);
+                                    let sel_min_y = from.y.min(to.y);
+                                    let sel_max_y = from.y.max(to.y);
+
+                                    let top_down_min_y = doc_height as i32 - 1 - sel_max_y;
+                                    let top_down_max_y = doc_height as i32 - 1 - sel_min_y;
+
+                                    let shifted_min_x = sel_min_x + dx;
+                                    let shifted_max_x = sel_max_x + dx;
+                                    let shifted_min_y = top_down_min_y + dy;
+                                    let shifted_max_y = top_down_max_y + dy;
+
+                                    if shifted_min_x < min_x {
+                                        min_x = shifted_min_x;
                                     }
-                                    if dst_min_y < min_y {
-                                        min_y = dst_min_y;
+                                    if shifted_max_x > max_x {
+                                        max_x = shifted_max_x;
                                     }
-                                    if dst_max_x > max_x {
-                                        max_x = dst_max_x;
+                                    if shifted_min_y < min_y {
+                                        min_y = shifted_min_y;
                                     }
-                                    if dst_max_y > max_y {
-                                        max_y = dst_max_y;
+                                    if shifted_max_y > max_y {
+                                        max_y = shifted_max_y;
                                     }
                                 }
                             }
                         }
                     }
                 }
+                pixel_studio_pro_v2::Tool::PasteImage | pixel_studio_pro_v2::Tool::RotateRect => {
+                    if let Some(meta_str) = &action.meta {
+                        if let Ok(meta) = serde_json::from_str::<MetaData>(meta_str) {
+                            if let (Some(pixels_b64), Some(rect)) = (&meta.pixels, &meta.rect) {
+                                if let Ok(img_data) = b64.decode(pixels_b64) {
+                                    if let Ok(img) = image::load_from_memory(&img_data) {
+                                        let dst_min_x = rect.from.x;
+                                        let dst_max_x = rect.from.x + img.width() as i32;
+                                        // Y is inverted (bottom-up in .psp files)
+                                        let dst_max_y = doc_height as i32 - rect.from.y;
+                                        let dst_min_y = dst_max_y - img.height() as i32;
+                                        if dst_min_x < min_x {
+                                            min_x = dst_min_x;
+                                        }
+                                        if dst_min_y < min_y {
+                                            min_y = dst_min_y;
+                                        }
+                                        if dst_max_x > max_x {
+                                            max_x = dst_max_x;
+                                        }
+                                        if dst_max_y > max_y {
+                                            max_y = dst_max_y;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                pixel_studio_pro_v2::Tool::Pen
+                | pixel_studio_pro_v2::Tool::DotPen
+                | pixel_studio_pro_v2::Tool::DitheringPen
+                | pixel_studio_pro_v2::Tool::Brush
+                | pixel_studio_pro_v2::Tool::OutlineTool
+                | pixel_studio_pro_v2::Tool::Eraser
+                | pixel_studio_pro_v2::Tool::Fill
+                | pixel_studio_pro_v2::Tool::Clear
+                | pixel_studio_pro_v2::Tool::EraserPen
+                | pixel_studio_pro_v2::Tool::Cut => {
+                    update_bounds_from_positions(
+                        &action.positions,
+                        doc_height,
+                        &mut min_x,
+                        &mut min_y,
+                        &mut max_x,
+                        &mut max_y,
+                    );
+                }
+                _ => {}
             }
-            ToolType::Pen
-            | ToolType::DotPen
-            | ToolType::DitheringPen
-            | ToolType::Brush
-            | ToolType::OutlineTool
-            | ToolType::Eraser
-            | ToolType::Fill
-            | ToolType::Clear
-            | ToolType::EraserPen
-            | ToolType::Cut => {
-                update_bounds_from_positions(
-                    &action.positions,
-                    doc_height,
-                    &mut min_x,
-                    &mut min_y,
-                    &mut max_x,
-                    &mut max_y,
-                );
-            }
-            _ => {}
         }
     }
 
@@ -334,7 +263,7 @@ fn calculate_bounds(
 }
 
 fn apply_positions_to_image(
-    tool_type: ToolType,
+    tool_type: pixel_studio_pro_v2::Tool,
     action: &pixel_studio_pro_v2::Action,
     final_img: &mut RgbaImage,
     min_x: i32,
@@ -352,10 +281,10 @@ fn apply_positions_to_image(
         .decode(&action.colors)
         .unwrap_or_default();
 
-    let color = if tool_type == ToolType::Eraser
-        || (tool_type == ToolType::Clear && col_bytes.is_empty())
-        || tool_type == ToolType::Cut
-        || (tool_type == ToolType::EraserPen && col_bytes.is_empty())
+    let color = if tool_type == pixel_studio_pro_v2::Tool::Eraser
+        || (tool_type == pixel_studio_pro_v2::Tool::Clear && col_bytes.is_empty())
+        || tool_type == pixel_studio_pro_v2::Tool::Cut
+        || (tool_type == pixel_studio_pro_v2::Tool::EraserPen && col_bytes.is_empty())
     {
         Rgba([0, 0, 0, 0])
     } else if col_bytes.len() >= 4 {
@@ -367,12 +296,12 @@ fn apply_positions_to_image(
 
     // Only skip processing if the tool required colors but didn't provide any,
     // and we aren't explicitly erasing (which would provide 0 colors anyway).
-    if (tool_type == ToolType::Pen
-        || tool_type == ToolType::DotPen
-        || tool_type == ToolType::DitheringPen
-        || tool_type == ToolType::Brush
-        || tool_type == ToolType::OutlineTool
-        || tool_type == ToolType::Fill)
+    if (tool_type == pixel_studio_pro_v2::Tool::Pen
+        || tool_type == pixel_studio_pro_v2::Tool::DotPen
+        || tool_type == pixel_studio_pro_v2::Tool::DitheringPen
+        || tool_type == pixel_studio_pro_v2::Tool::Brush
+        || tool_type == pixel_studio_pro_v2::Tool::OutlineTool
+        || tool_type == pixel_studio_pro_v2::Tool::Fill)
         && col_bytes.is_empty()
     {
         return;
@@ -387,24 +316,24 @@ fn apply_positions_to_image(
                 - min_y;
 
             if px >= 0 && py >= 0 && (px as u32) < img_width && (py as u32) < img_height {
-                if tool_type == ToolType::EraserPen {
+                if tool_type == pixel_studio_pro_v2::Tool::EraserPen {
                     let current_color = *final_img.get_pixel(px as u32, py as u32);
                     if current_color[3] == 0 {
                         final_img.put_pixel(px as u32, py as u32, color);
                     } else {
                         final_img.put_pixel(px as u32, py as u32, Rgba([0, 0, 0, 0]));
                     }
-                } else if tool_type == ToolType::Pen
-                    || tool_type == ToolType::DotPen
-                    || tool_type == ToolType::DitheringPen
-                    || tool_type == ToolType::Brush
-                    || tool_type == ToolType::OutlineTool
-                    || tool_type == ToolType::Eraser
-                    || tool_type == ToolType::Clear
-                    || tool_type == ToolType::Cut
+                } else if tool_type == pixel_studio_pro_v2::Tool::Pen
+                    || tool_type == pixel_studio_pro_v2::Tool::DotPen
+                    || tool_type == pixel_studio_pro_v2::Tool::DitheringPen
+                    || tool_type == pixel_studio_pro_v2::Tool::Brush
+                    || tool_type == pixel_studio_pro_v2::Tool::OutlineTool
+                    || tool_type == pixel_studio_pro_v2::Tool::Eraser
+                    || tool_type == pixel_studio_pro_v2::Tool::Clear
+                    || tool_type == pixel_studio_pro_v2::Tool::Cut
                 {
                     final_img.put_pixel(px as u32, py as u32, color);
-                } else if tool_type == ToolType::Fill {
+                } else if tool_type == pixel_studio_pro_v2::Tool::Fill {
                     flood_fill(final_img, px as u32, py as u32, color);
                 }
                 *has_data = true;
@@ -487,7 +416,7 @@ fn apply_move_action(
 }
 
 fn apply_paste_import_action(
-    tool_type: ToolType,
+    tool_type: pixel_studio_pro_v2::Tool,
     action: &pixel_studio_pro_v2::Action,
     final_img: &mut RgbaImage,
     min_x: i32,
@@ -519,7 +448,7 @@ fn apply_paste_import_action(
                                 {
                                     let p = rgba_patch.get_pixel(x, y);
 
-                                    if tool_type == ToolType::PasteImage {
+                                    if tool_type == pixel_studio_pro_v2::Tool::PasteImage {
                                         if p[3] > 0 {
                                             use image::Pixel;
                                             let mut bg_p =
@@ -552,7 +481,7 @@ fn apply_paste_import_action(
 }
 
 fn apply_transform_action(
-    tool_type: ToolType,
+    tool_type: pixel_studio_pro_v2::Tool,
     action: &pixel_studio_pro_v2::Action,
     final_img: &mut RgbaImage,
     min_x: i32,
@@ -586,10 +515,10 @@ fn apply_transform_action(
 
                 let temp_img = final_img.clone();
 
-                if tool_type == ToolType::RotateLeft
-                    || tool_type == ToolType::RotateRight
-                    || tool_type == ToolType::FlipByX
-                    || tool_type == ToolType::FlipByY
+                if tool_type == pixel_studio_pro_v2::Tool::RotateLeft
+                    || tool_type == pixel_studio_pro_v2::Tool::RotateRight
+                    || tool_type == pixel_studio_pro_v2::Tool::FlipByX
+                    || tool_type == pixel_studio_pro_v2::Tool::FlipByY
                 {
                     for y in 0..sel_h {
                         for x in 0..sel_w {
@@ -618,19 +547,19 @@ fn apply_transform_action(
                             let color = *temp_img.get_pixel(src_x as u32, src_y as u32);
                             if color[3] > 0 {
                                 let (dst_x, dst_y) = match tool_type {
-                                    ToolType::MirrorByX => {
+                                    pixel_studio_pro_v2::Tool::MirrorByX => {
                                         (sel_min_x + (sel_w - 1 - x), sel_min_y + y)
                                     }
-                                    ToolType::MirrorByY => {
+                                    pixel_studio_pro_v2::Tool::MirrorByY => {
                                         (sel_min_x + x, sel_min_y + (sel_h - 1 - y))
                                     }
-                                    ToolType::FlipByX => {
+                                    pixel_studio_pro_v2::Tool::FlipByX => {
                                         (sel_min_x + (sel_w - 1 - x), sel_min_y + y)
                                     }
-                                    ToolType::FlipByY => {
+                                    pixel_studio_pro_v2::Tool::FlipByY => {
                                         (sel_min_x + x, sel_min_y + (sel_h - 1 - y))
                                     }
-                                    ToolType::RotateRight => {
+                                    pixel_studio_pro_v2::Tool::RotateRight => {
                                         let new_x = y;
                                         let new_y = sel_w - 1 - x;
                                         (
@@ -638,7 +567,7 @@ fn apply_transform_action(
                                             new_y + sel_min_y + (sel_h - sel_w) / 2,
                                         )
                                     }
-                                    ToolType::RotateLeft => {
+                                    pixel_studio_pro_v2::Tool::RotateLeft => {
                                         let new_x = sel_h - 1 - y;
                                         let new_y = x;
                                         (
@@ -749,96 +678,97 @@ fn replay_actions(
         // Actions must be replayed up to index. Actually, history.index can sometimes point past the end.
         let replay_count = std::cmp::min(history.index as usize, history.actions.len());
         for action in history.actions.iter().take(replay_count) {
-            let tool_type = ToolType::from(action.tool);
-            match tool_type {
-                ToolType::Move => {
-                    apply_move_action(
-                        action,
-                        &mut final_img,
-                        min_x,
-                        min_y,
-                        img_width,
-                        img_height,
-                        doc_height,
-                        &mut has_data,
-                    );
-                }
-                ToolType::PasteImage | ToolType::RotateRect => {
-                    apply_paste_import_action(
-                        tool_type,
-                        action,
-                        &mut final_img,
-                        min_x,
-                        min_y,
-                        img_width,
-                        img_height,
-                        doc_height,
-                        &mut has_data,
-                    );
-                }
-                ToolType::Pen
-                | ToolType::DotPen
-                | ToolType::DitheringPen
-                | ToolType::Brush
-                | ToolType::OutlineTool
-                | ToolType::Fill
-                | ToolType::Eraser
-                | ToolType::Clear
-                | ToolType::EraserPen
-                | ToolType::Cut => {
-                    apply_positions_to_image(
-                        tool_type,
-                        action,
-                        &mut final_img,
-                        min_x,
-                        min_y,
-                        img_width,
-                        img_height,
-                        doc_height,
-                        &mut has_data,
-                    );
-                }
-                ToolType::MirrorByX
-                | ToolType::MirrorByY
-                | ToolType::FlipByX
-                | ToolType::FlipByY
-                | ToolType::RotateLeft
-                | ToolType::RotateRight => {
-                    apply_transform_action(
-                        tool_type,
-                        action,
-                        &mut final_img,
-                        min_x,
-                        min_y,
-                        img_width,
-                        img_height,
-                        doc_height,
-                        &mut has_data,
-                    );
-                }
-                ToolType::ReplaceColor => {
-                    apply_replace_color_action(
-                        action,
-                        &mut final_img,
-                        min_x,
-                        min_y,
-                        img_width,
-                        img_height,
-                        doc_height,
-                    );
-                }
-                ToolType::Pipette
-                | ToolType::MoveCamera
-                | ToolType::GenericTool
-                | ToolType::Copy
-                | ToolType::Paste
-                | ToolType::MagicWand
-                | ToolType::ColorAdjustment
-                | ToolType::PixelSelect
-                | ToolType::Lasso
-                | ToolType::Cursor
-                | ToolType::Unknown(_) => {
-                    // Ignore these UI/selection tools or unknown tools
+            if let Ok(tool_type) = pixel_studio_pro_v2::Tool::try_from(action.tool) {
+                match tool_type {
+                    pixel_studio_pro_v2::Tool::Move => {
+                        apply_move_action(
+                            action,
+                            &mut final_img,
+                            min_x,
+                            min_y,
+                            img_width,
+                            img_height,
+                            doc_height,
+                            &mut has_data,
+                        );
+                    }
+                    pixel_studio_pro_v2::Tool::PasteImage
+                    | pixel_studio_pro_v2::Tool::RotateRect => {
+                        apply_paste_import_action(
+                            tool_type,
+                            action,
+                            &mut final_img,
+                            min_x,
+                            min_y,
+                            img_width,
+                            img_height,
+                            doc_height,
+                            &mut has_data,
+                        );
+                    }
+                    pixel_studio_pro_v2::Tool::Pen
+                    | pixel_studio_pro_v2::Tool::DotPen
+                    | pixel_studio_pro_v2::Tool::DitheringPen
+                    | pixel_studio_pro_v2::Tool::Brush
+                    | pixel_studio_pro_v2::Tool::OutlineTool
+                    | pixel_studio_pro_v2::Tool::Fill
+                    | pixel_studio_pro_v2::Tool::Eraser
+                    | pixel_studio_pro_v2::Tool::Clear
+                    | pixel_studio_pro_v2::Tool::EraserPen
+                    | pixel_studio_pro_v2::Tool::Cut => {
+                        apply_positions_to_image(
+                            tool_type,
+                            action,
+                            &mut final_img,
+                            min_x,
+                            min_y,
+                            img_width,
+                            img_height,
+                            doc_height,
+                            &mut has_data,
+                        );
+                    }
+                    pixel_studio_pro_v2::Tool::MirrorByX
+                    | pixel_studio_pro_v2::Tool::MirrorByY
+                    | pixel_studio_pro_v2::Tool::FlipByX
+                    | pixel_studio_pro_v2::Tool::FlipByY
+                    | pixel_studio_pro_v2::Tool::RotateLeft
+                    | pixel_studio_pro_v2::Tool::RotateRight => {
+                        apply_transform_action(
+                            tool_type,
+                            action,
+                            &mut final_img,
+                            min_x,
+                            min_y,
+                            img_width,
+                            img_height,
+                            doc_height,
+                            &mut has_data,
+                        );
+                    }
+                    pixel_studio_pro_v2::Tool::ReplaceColor => {
+                        apply_replace_color_action(
+                            action,
+                            &mut final_img,
+                            min_x,
+                            min_y,
+                            img_width,
+                            img_height,
+                            doc_height,
+                        );
+                    }
+                    pixel_studio_pro_v2::Tool::Pipette
+                    | pixel_studio_pro_v2::Tool::MoveCamera
+                    | pixel_studio_pro_v2::Tool::GenericTool
+                    | pixel_studio_pro_v2::Tool::Copy
+                    | pixel_studio_pro_v2::Tool::Paste
+                    | pixel_studio_pro_v2::Tool::MagicWand
+                    | pixel_studio_pro_v2::Tool::ColorAdjustment
+                    | pixel_studio_pro_v2::Tool::PixelSelect
+                    | pixel_studio_pro_v2::Tool::Lasso
+                    | pixel_studio_pro_v2::Tool::Cursor => {
+                        // Ignore these UI/selection tools or unknown tools
+                    }
                 }
             }
         }
@@ -962,22 +892,6 @@ pub fn convert(doc: pixel_studio_pro_v2::Document) -> Result<Document> {
 mod tests {
     use super::*;
 
-    #[test]
-    fn test_tool_type_mapping() {
-        assert_eq!(ToolType::from(0), ToolType::Pen);
-        assert_eq!(ToolType::from(6), ToolType::Clear);
-        assert_eq!(ToolType::from(8), ToolType::Cut);
-        assert_eq!(ToolType::from(11), ToolType::MirrorByX);
-        assert_eq!(ToolType::from(12), ToolType::MirrorByY);
-        assert_eq!(ToolType::from(13), ToolType::FlipByX);
-        assert_eq!(ToolType::from(14), ToolType::FlipByY);
-        assert_eq!(ToolType::from(15), ToolType::RotateLeft);
-        assert_eq!(ToolType::from(16), ToolType::RotateRight);
-        assert_eq!(ToolType::from(18), ToolType::ReplaceColor);
-        assert_eq!(ToolType::from(19), ToolType::EraserPen);
-        assert_eq!(ToolType::from(21), ToolType::RotateRect);
-        assert_eq!(ToolType::from(99), ToolType::Unknown(99));
-    }
 
     #[test]
     fn test_psp_v2_conversion_basic() {
