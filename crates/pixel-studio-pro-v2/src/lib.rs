@@ -150,3 +150,77 @@ mod tests {
         assert_eq!(doc.clips[0].frames[0].layers[0].opacity, 0.8);
     }
 }
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Tool {
+    Pen = 0,
+    Pipette = 1,
+    Eraser = 2,
+    Fill = 3,
+    MoveCamera = 4,
+    GenericTool = 5,
+    Clear = 6,
+    Copy = 7,
+    Cut = 8,
+    Paste = 9,
+    Move = 10,
+    MirrorByX = 11,
+    MirrorByY = 12,
+    FlipByX = 13,
+    FlipByY = 14,
+    RotateLeft = 15,
+    RotateRight = 16,
+    DotPen = 17,
+    ReplaceColor = 18,
+    EraserPen = 19,
+    PasteImage = 20,
+    RotateRect = 21,
+    DitheringPen = 22,
+    MagicWand = 23,
+    ColorAdjustment = 24,
+    Brush = 25,
+    PixelSelect = 26,
+    Lasso = 27,
+    Cursor = 28,
+    OutlineTool = 29,
+}
+
+impl TryFrom<u32> for Tool {
+    type Error = ();
+
+    fn try_from(value: u32) -> Result<Self, Self::Error> {
+        match value {
+            0 => Ok(Tool::Pen),
+            1 => Ok(Tool::Pipette),
+            2 => Ok(Tool::Eraser),
+            3 => Ok(Tool::Fill),
+            4 => Ok(Tool::MoveCamera),
+            5 => Ok(Tool::GenericTool),
+            6 => Ok(Tool::Clear),
+            7 => Ok(Tool::Copy),
+            8 => Ok(Tool::Cut),
+            9 => Ok(Tool::Paste),
+            10 => Ok(Tool::Move),
+            11 => Ok(Tool::MirrorByX),
+            12 => Ok(Tool::MirrorByY),
+            13 => Ok(Tool::FlipByX),
+            14 => Ok(Tool::FlipByY),
+            15 => Ok(Tool::RotateLeft),
+            16 => Ok(Tool::RotateRight),
+            17 => Ok(Tool::DotPen),
+            18 => Ok(Tool::ReplaceColor),
+            19 => Ok(Tool::EraserPen),
+            20 => Ok(Tool::PasteImage),
+            21 => Ok(Tool::RotateRect),
+            22 => Ok(Tool::DitheringPen),
+            23 => Ok(Tool::MagicWand),
+            24 => Ok(Tool::ColorAdjustment),
+            25 => Ok(Tool::Brush),
+            26 => Ok(Tool::PixelSelect),
+            27 => Ok(Tool::Lasso),
+            28 => Ok(Tool::Cursor),
+            29 => Ok(Tool::OutlineTool),
+            _ => Err(()),
+        }
+    }
+}
