@@ -1,5 +1,5 @@
-use anyhow::{Result, anyhow};
-use base64::{Engine, engine::general_purpose::STANDARD as b64};
+use anyhow::{anyhow, Result};
+use base64::{engine::general_purpose::STANDARD as b64, Engine};
 use image::{Rgba, RgbaImage};
 use pixel_art::{BlendMode, Cel, Document, Frame, Image, Layer};
 use pixel_studio_pro_v2::{self, History};
@@ -71,7 +71,7 @@ fn update_bounds_from_positions(
     max_x: &mut i32,
     max_y: &mut i32,
 ) {
-    use base64::{Engine as _, engine::general_purpose};
+    use base64::{engine::general_purpose, Engine as _};
     let pos_bytes = general_purpose::STANDARD
         .decode(positions_b64)
         .unwrap_or_default();
@@ -206,7 +206,101 @@ fn calculate_bounds(
                         }
                     }
                 }
-                pixel_studio_pro_v2::Tool::PasteImage | pixel_studio_pro_v2::Tool::RotateRect => {
+                pixel_studio_pro_v2::Tool::RotateRect => {
+                    let pos_bytes = b64.decode(&action.positions).unwrap_or_default();
+                    if pos_bytes.len() >= 12 {
+                        let px1 = i16::from_le_bytes([pos_bytes[0], pos_bytes[1]]) as i32;
+                        let py1 = doc_height as i32
+                            - 1
+                            - i16::from_le_bytes([pos_bytes[2], pos_bytes[3]]) as i32;
+                        let px2 = i16::from_le_bytes([pos_bytes[4], pos_bytes[5]]) as i32;
+                        let py2 = doc_height as i32
+                            - 1
+                            - i16::from_le_bytes([pos_bytes[6], pos_bytes[7]]) as i32;
+                        let px3 = i16::from_le_bytes([pos_bytes[8], pos_bytes[9]]) as i32;
+                        let py3 = doc_height as i32
+                            - 1
+                            - i16::from_le_bytes([pos_bytes[10], pos_bytes[11]]) as i32;
+
+                        let rect_min_x = px1.min(px2);
+                        let rect_max_x = px1.max(px2);
+                        let rect_min_y = py1.min(py2);
+                        let rect_max_y = py1.max(py2);
+
+                        let w = rect_max_x - rect_min_x + 1;
+                        let h = rect_max_y - rect_min_y + 1;
+
+                        // the bounding box after rotation might be larger, but since it's around the center,
+                        // and we have an offset px3, py3, we can approximate the max bounds.
+                        // For exact bounding box of rotated rect:
+                        let cx = rect_min_x as f32 + (w as f32 - 1.0) / 2.0;
+                        let cy = rect_min_y as f32 + (h as f32 - 1.0) / 2.0;
+
+                        let angle_deg: f32 = action
+                            .meta
+                            .as_deref()
+                            .and_then(|m| m.parse().ok())
+                            .unwrap_or(0.0);
+                        let angle_rad = angle_deg * std::f32::consts::PI / 180.0;
+                        let cos_a = angle_rad.cos();
+                        let sin_a = angle_rad.sin();
+
+                        let mut min_rx = f32::MAX;
+                        let mut min_ry = f32::MAX;
+                        let mut max_rx = f32::MIN;
+                        let mut max_ry = f32::MIN;
+
+                        let corners = [
+                            (rect_min_x as f32, rect_min_y as f32),
+                            (rect_max_x as f32, rect_min_y as f32),
+                            (rect_min_x as f32, rect_max_y as f32),
+                            (rect_max_x as f32, rect_max_y as f32),
+                        ];
+
+                        for &(x, y) in &corners {
+                            let rel_x = x - cx;
+                            let rel_y = y - cy;
+                            let rot_x = cx + rel_x * cos_a - rel_y * sin_a;
+                            let rot_y = cy + rel_x * sin_a + rel_y * cos_a;
+                            if rot_x < min_rx {
+                                min_rx = rot_x;
+                            }
+                            if rot_y < min_ry {
+                                min_ry = rot_y;
+                            }
+                            if rot_x > max_rx {
+                                max_rx = rot_x;
+                            }
+                            if rot_y > max_ry {
+                                max_ry = rot_y;
+                            }
+                        }
+
+                        // Add target offset
+                        let offset_x = px3 - rect_min_x;
+                        let offset_y = py3 - rect_min_y;
+
+                        let final_min_x = min_rx.floor() as i32 + offset_x;
+                        let final_min_y = min_ry.floor() as i32 + offset_y;
+                        let final_max_x = max_rx.ceil() as i32 + offset_x;
+                        let final_max_y = max_ry.ceil() as i32 + offset_y;
+
+                        if final_min_x < min_x {
+                            min_x = final_min_x;
+                        }
+                        if final_min_y < min_y {
+                            min_y = final_min_y;
+                        }
+                        if final_max_x > max_x {
+                            max_x = final_max_x;
+                        }
+                        if final_max_y > max_y {
+                            max_y = final_max_y;
+                        }
+                    }
+                }
+
+                pixel_studio_pro_v2::Tool::PasteImage => {
                     if let Some(meta_str) = &action.meta {
                         if let Ok(meta) = serde_json::from_str::<MetaData>(meta_str) {
                             if let (Some(pixels_b64), Some(rect)) = (&meta.pixels, &meta.rect) {
@@ -273,7 +367,7 @@ fn apply_positions_to_image(
     doc_height: u32,
     has_data: &mut bool,
 ) {
-    use base64::{Engine as _, engine::general_purpose};
+    use base64::{engine::general_purpose, Engine as _};
     let pos_bytes = general_purpose::STANDARD
         .decode(&action.positions)
         .unwrap_or_default();
@@ -595,6 +689,180 @@ fn apply_transform_action(
     }
 }
 
+fn apply_rotate_rect_action(
+    action: &pixel_studio_pro_v2::Action,
+    final_img: &mut RgbaImage,
+    min_x: i32,
+    min_y: i32,
+    img_width: u32,
+    img_height: u32,
+    doc_height: u32,
+    has_data: &mut bool,
+) {
+    use base64::{engine::general_purpose, Engine as _};
+    let pos_bytes = general_purpose::STANDARD
+        .decode(&action.positions)
+        .unwrap_or_default();
+
+    if pos_bytes.len() < 12 {
+        return;
+    }
+
+    let px1 = i16::from_le_bytes([pos_bytes[0], pos_bytes[1]]) as i32;
+    let py1 = doc_height as i32 - 1 - i16::from_le_bytes([pos_bytes[2], pos_bytes[3]]) as i32;
+    let px2 = i16::from_le_bytes([pos_bytes[4], pos_bytes[5]]) as i32;
+    let py2 = doc_height as i32 - 1 - i16::from_le_bytes([pos_bytes[6], pos_bytes[7]]) as i32;
+    let px3 = i16::from_le_bytes([pos_bytes[8], pos_bytes[9]]) as i32;
+    let py3 = doc_height as i32 - 1 - i16::from_le_bytes([pos_bytes[10], pos_bytes[11]]) as i32;
+
+    let rect_min_x = px1.min(px2);
+    let rect_max_x = px1.max(px2);
+    let rect_min_y = py1.min(py2);
+    let rect_max_y = py1.max(py2);
+
+    let w = rect_max_x - rect_min_x + 1;
+    let h = rect_max_y - rect_min_y + 1;
+
+    // Extract source pixels
+    let mut extracted_pixels = vec![Rgba([0, 0, 0, 0]); (w * h) as usize];
+
+    // Determine the pixel positions we need to rotate.
+    // If there are more than 3 positions, it might mean we only rotate a subset (as per C# code).
+    // However, C# code says: if action.Positions.Count == 3, full rect.
+    // Else, extract specific pixels.
+    let count = pos_bytes.len() / 4;
+
+    if count == 3 {
+        for y in 0..h {
+            for x in 0..w {
+                let src_x = rect_min_x + x - min_x;
+                let src_y = rect_min_y + y - min_y;
+
+                if src_x >= 0
+                    && src_y >= 0
+                    && (src_x as u32) < img_width
+                    && (src_y as u32) < img_height
+                {
+                    let p = *final_img.get_pixel(src_x as u32, src_y as u32);
+                    extracted_pixels[(x + y * w) as usize] = p;
+                    final_img.put_pixel(src_x as u32, src_y as u32, Rgba([0, 0, 0, 0]));
+                }
+            }
+        }
+    } else {
+        for i in 3..count {
+            let idx = i * 4;
+            let px = i16::from_le_bytes([pos_bytes[idx], pos_bytes[idx + 1]]) as i32;
+            let py = doc_height as i32
+                - 1
+                - i16::from_le_bytes([pos_bytes[idx + 2], pos_bytes[idx + 3]]) as i32;
+
+            let rel_x = px - rect_min_x;
+            let rel_y = py - rect_min_y;
+
+            let src_x = px - min_x;
+            let src_y = py - min_y;
+
+            if src_x >= 0
+                && src_y >= 0
+                && (src_x as u32) < img_width
+                && (src_y as u32) < img_height
+                && rel_x >= 0
+                && rel_x < w
+                && rel_y >= 0
+                && rel_y < h
+            {
+                let p = *final_img.get_pixel(src_x as u32, src_y as u32);
+                extracted_pixels[(rel_x + rel_y * w) as usize] = p;
+                final_img.put_pixel(src_x as u32, src_y as u32, Rgba([0, 0, 0, 0]));
+            }
+        }
+    }
+
+    // Rotate
+    let angle_deg: f32 = action
+        .meta
+        .as_deref()
+        .and_then(|m| m.parse().ok())
+        .unwrap_or(0.0);
+    let angle_rad = angle_deg * std::f32::consts::PI / 180.0;
+    let cos_a = angle_rad.cos();
+    let sin_a = angle_rad.sin();
+
+    let cx = (w as f32 - 1.0) / 2.0;
+    let cy = (h as f32 - 1.0) / 2.0;
+
+    let mut min_rx = f32::MAX;
+    let mut min_ry = f32::MAX;
+    let mut max_rx = f32::MIN;
+    let mut max_ry = f32::MIN;
+
+    let corners = [
+        (0.0, 0.0),
+        (w as f32 - 1.0, 0.0),
+        (0.0, h as f32 - 1.0),
+        (w as f32 - 1.0, h as f32 - 1.0),
+    ];
+
+    for &(x, y) in &corners {
+        let rel_x = x - cx;
+        let rel_y = y - cy;
+        let rot_x = cx + rel_x * cos_a - rel_y * sin_a;
+        let rot_y = cy + rel_x * sin_a + rel_y * cos_a;
+        if rot_x < min_rx {
+            min_rx = rot_x;
+        }
+        if rot_y < min_ry {
+            min_ry = rot_y;
+        }
+        if rot_x > max_rx {
+            max_rx = rot_x;
+        }
+        if rot_y > max_ry {
+            max_ry = rot_y;
+        }
+    }
+
+    let rot_w = (max_rx - min_rx).round() as i32 + 1;
+    let rot_h = (max_ry - min_ry).round() as i32 + 1;
+
+    // Nearest neighbor rotation
+    // We map destination pixels back to source pixels
+    for ry in 0..rot_h {
+        for rx in 0..rot_w {
+            let dst_cx = min_rx.floor() + rx as f32;
+            let dst_cy = min_ry.floor() + ry as f32;
+
+            let rel_x = dst_cx - cx;
+            let rel_y = dst_cy - cy;
+
+            // inverse rotation
+            let src_x = cx + rel_x * cos_a + rel_y * sin_a;
+            let src_y = cy - rel_x * sin_a + rel_y * cos_a;
+
+            let src_x_i = src_x.round() as i32;
+            let src_y_i = src_y.round() as i32;
+
+            if src_x_i >= 0 && src_x_i < w && src_y_i >= 0 && src_y_i < h {
+                let p = extracted_pixels[(src_x_i + src_y_i * w) as usize];
+                if p[3] != 0 {
+                    let final_x = px3 + rx + min_rx.floor() as i32 - min_x;
+                    let final_y = py3 + ry + min_ry.floor() as i32 - min_y;
+
+                    if final_x >= 0
+                        && final_y >= 0
+                        && (final_x as u32) < img_width
+                        && (final_y as u32) < img_height
+                    {
+                        final_img.put_pixel(final_x as u32, final_y as u32, p);
+                        *has_data = true;
+                    }
+                }
+            }
+        }
+    }
+}
+
 fn apply_replace_color_action(
     action: &pixel_studio_pro_v2::Action,
     final_img: &mut RgbaImage,
@@ -604,7 +872,7 @@ fn apply_replace_color_action(
     img_height: u32,
     doc_height: u32,
 ) {
-    use base64::{Engine as _, engine::general_purpose};
+    use base64::{engine::general_purpose, Engine as _};
     let pos_bytes = general_purpose::STANDARD
         .decode(&action.positions)
         .unwrap_or_default();
@@ -692,8 +960,19 @@ fn replay_actions(
                             &mut has_data,
                         );
                     }
-                    pixel_studio_pro_v2::Tool::PasteImage
-                    | pixel_studio_pro_v2::Tool::RotateRect => {
+                    pixel_studio_pro_v2::Tool::RotateRect => {
+                        apply_rotate_rect_action(
+                            action,
+                            &mut final_img,
+                            min_x,
+                            min_y,
+                            img_width,
+                            img_height,
+                            doc_height,
+                            &mut has_data,
+                        );
+                    }
+                    pixel_studio_pro_v2::Tool::PasteImage => {
                         apply_paste_import_action(
                             tool_type,
                             action,
@@ -891,7 +1170,6 @@ pub fn convert(doc: pixel_studio_pro_v2::Document) -> Result<Document> {
 #[cfg(test)]
 mod tests {
     use super::*;
-
 
     #[test]
     fn test_psp_v2_conversion_basic() {
