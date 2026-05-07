@@ -67,8 +67,8 @@ pub fn convert(psd_bytes: &[u8]) -> Result<Document> {
                 x,
                 y,
                 image: Image {
-                    width: layer_width,
-                    height: layer_height,
+                    width: u16::try_from(layer_width)?,
+                    height: u16::try_from(layer_height)?,
                     rgba,
                 },
             });
