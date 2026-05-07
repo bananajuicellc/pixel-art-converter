@@ -198,10 +198,7 @@ fn test_pixel_studio_pro_v2_history_output_matches() {
         "history007-dotpict-pencil",
         "history008-dotpict-eraser",
         "history009-copy-paste",
-        "history008-move",
-        "history009-copy-paste",
         "history010-shapes",
-        "test_data",
 
     ];
 
