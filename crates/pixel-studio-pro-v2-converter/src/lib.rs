@@ -723,15 +723,6 @@ fn get_rotate_rect_info(
         }
     }
 
-    // According to C# code, Position[2] is the new Top-Left (min coordinate) where the rotated rect should be placed.
-    // Specifically: ImageRect rect3 = new ImageRect(action.Positions[0], action.Positions[1]);
-    // Position position = action.Positions[2];
-    // Then SetPixelSafe(num11 + rotationContainer.RectEx.X + position.X, ...)
-    // So the offset is essentially the difference from the original min coordinates.
-    // The rotated rect's new top-left relative to its local coordinates is min_rx, min_ry
-    // In global coordinates, it starts at rect_min_x + position.X
-    // So final_min_x = rect_min_x + px3
-
     let offset_x = px3 - rect_min_x;
     let offset_y = py3 - rect_min_y;
 
