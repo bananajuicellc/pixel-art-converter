@@ -2,6 +2,8 @@ use anyhow::Result;
 use aseprite::{AsepriteFile, BlendMode as AseBlendMode, ColorMode, LayerOptions, Pixels};
 use pixel_art::{BlendMode, Document};
 
+pub mod reader;
+
 pub fn convert(doc: Document) -> Result<AsepriteFile> {
     let mut aseprite = AsepriteFile::new(doc.width, doc.height, ColorMode::Rgba);
 

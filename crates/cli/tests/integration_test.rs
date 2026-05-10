@@ -283,3 +283,53 @@ fn test_pixel_studio_pro_v2_history_output_matches() {
         }
     }
 }
+
+#[cfg(feature = "image")]
+#[test]
+fn test_cli_aseprite_to_png() {
+    let pixaki_path = PathBuf::from("tests/data/fox_smile.pixaki");
+    let aseprite_path = PathBuf::from("tests/data/fox_smile_temp.aseprite");
+    let png_path = PathBuf::from("tests/data/fox_smile_from_aseprite.png");
+
+    // Ensure outputs don't exist
+    if aseprite_path.exists() {
+        fs::remove_file(&aseprite_path).unwrap();
+    }
+    if png_path.exists() {
+        fs::remove_file(&png_path).unwrap();
+    }
+
+    // Generate intermediate aseprite
+    let status_ase = Command::new("cargo")
+        .args([
+            "run",
+            "--",
+            pixaki_path.to_str().unwrap(),
+            aseprite_path.to_str().unwrap(),
+        ])
+        .status()
+        .expect("Failed to execute command");
+
+    assert!(status_ase.success());
+    assert!(aseprite_path.exists());
+
+    // Generate png from aseprite
+    let status_png = Command::new("cargo")
+        .args([
+            "run",
+            "--features",
+            "image",
+            "--",
+            aseprite_path.to_str().unwrap(),
+            png_path.to_str().unwrap(),
+        ])
+        .status()
+        .expect("Failed to execute command");
+
+    assert!(status_png.success());
+    assert!(png_path.exists());
+
+    // Optional: Clean up
+    fs::remove_file(&aseprite_path).unwrap();
+    fs::remove_file(&png_path).unwrap();
+}
