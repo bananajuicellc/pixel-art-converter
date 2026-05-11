@@ -28,10 +28,11 @@ pub fn convert(doc: Document) -> Result<AsepriteFile> {
     for cel in &doc.cels {
         let layer_handle = layer_handles[cel.layer_index];
         let frame_handle = frame_handles[cel.frame_index];
+        let image = &doc.images[cel.image_index];
         let pixels = Pixels::new(
-            cel.image.rgba.clone(),
-            cel.image.width,
-            cel.image.height,
+            image.rgba.clone(),
+            image.width,
+            image.height,
             ColorMode::Rgba,
         )
         .map_err(|e| anyhow::anyhow!("Failed to create Pixels: {}", e))?;
@@ -82,6 +83,7 @@ mod tests {
             }],
             frames: vec![Frame { duration_ms: 100 }],
             cels: vec![],
+            images: vec![],
         };
 
         let ase = convert(doc).unwrap();

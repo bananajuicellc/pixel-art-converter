@@ -132,7 +132,7 @@ fn test_image_export_fox_smile() {
         !doc.cels.is_empty(),
         "Document should have at least one cel"
     );
-    let first_cel_image = doc.cels[0].image.clone();
+    let first_cel_image = doc.images[doc.cels[0].image_index].clone();
 
     let rgba_image: image::RgbaImage = first_cel_image.into();
     assert_eq!(rgba_image.width() as u16, doc.width);
@@ -153,7 +153,7 @@ fn test_image_export_fox_walk() {
         !doc.cels.is_empty(),
         "Document should have at least one cel"
     );
-    let first_cel_image = doc.cels[0].image.clone();
+    let first_cel_image = doc.images[doc.cels[0].image_index].clone();
 
     let rgba_image: image::RgbaImage = first_cel_image.into();
     assert_eq!(rgba_image.width() as u16, doc.width);
@@ -174,7 +174,7 @@ fn test_image_export_frame_psp() {
         !doc.cels.is_empty(),
         "Document should have at least one cel"
     );
-    let first_cel_image = doc.cels[0].image.clone();
+    let first_cel_image = doc.images[doc.cels[0].image_index].clone();
 
     let rgba_image: image::RgbaImage = first_cel_image.clone().into();
     // width and height match the cel image's width and height

@@ -41,20 +41,32 @@ pub fn parse(aseprite_file: AsepriteFile) -> Result<Document> {
     }
 
     let mut cels = Vec::new();
-    for (frame_idx, _) in aseprite_file.frames().iter().enumerate() {
-        for (layer_idx, _) in aseprite_file.layers().iter().enumerate() {
+    let mut images = Vec::new();
+
+    // We iterate over frames then layers so they're in a deterministic order.
+    // By using `resolve_cel`, we correctly follow Linked Cels in Aseprite to their source frame.
+    for frame_idx in 0..aseprite_file.frames().len() {
+        for layer_idx in 0..aseprite_file.layers().len() {
             if let Some(ase_layer_ref) = aseprite_file.layer_ref(layer_idx) {
-                if let Some(ase_cel) = aseprite_file.cel(ase_layer_ref, frame_idx) {
+                if let Some(ase_cel) = aseprite_file.resolve_cel(ase_layer_ref, frame_idx) {
                     let (pixels, x, y) = match &ase_cel.kind {
                         CelKind::Raw { pixels, x, y } => (pixels, *x, *y),
                         CelKind::Compressed { pixels, x, y, .. } => (pixels, *x, *y),
-                        _ => continue, // Ignore tilemap or unlinked cels for now if they don't have pixel data directly
+                        _ => continue, // Ignore tilemap cels for now if they don't have pixel data directly
                     };
 
-                    let image = Image {
-                        width: pixels.width,
-                        height: pixels.height,
-                        rgba: pixels.data.clone(),
+                    let image_index = if let Some(idx) = images.iter().position(|img: &Image| {
+                        img.width == pixels.width && img.height == pixels.height && img.rgba == pixels.data
+                    }) {
+                        idx
+                    } else {
+                        let idx = images.len();
+                        images.push(Image {
+                            width: pixels.width,
+                            height: pixels.height,
+                            rgba: pixels.data.clone(),
+                        });
+                        idx
                     };
 
                     cels.push(Cel {
@@ -62,7 +74,7 @@ pub fn parse(aseprite_file: AsepriteFile) -> Result<Document> {
                         layer_index: layer_idx,
                         x,
                         y,
-                        image,
+                        image_index,
                     });
                 }
             }
@@ -75,6 +87,7 @@ pub fn parse(aseprite_file: AsepriteFile) -> Result<Document> {
         layers,
         frames,
         cels,
+        images,
     })
 }
 
@@ -102,7 +115,8 @@ mod tests {
         assert_eq!(doc.cels.len(), 1);
         assert_eq!(doc.cels[0].x, 0);
         assert_eq!(doc.cels[0].y, 0);
-        assert_eq!(doc.cels[0].image.width, 16);
-        assert_eq!(doc.cels[0].image.height, 16);
+        assert_eq!(doc.images.len(), 1);
+        assert_eq!(doc.images[doc.cels[0].image_index].width, 16);
+        assert_eq!(doc.images[doc.cels[0].image_index].height, 16);
     }
 }
