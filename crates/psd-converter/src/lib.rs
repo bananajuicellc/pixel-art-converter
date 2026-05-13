@@ -18,7 +18,7 @@ pub fn convert(psd_bytes: &[u8]) -> Result<Document> {
     let mut cels = Vec::new();
     let mut images = Vec::new();
 
-    for (layer_index, psd_layer) in psd.layers().iter().enumerate() {
+    for (layer_index, psd_layer) in psd.layers().iter().rev().enumerate() {
         let name = psd_layer.name().to_string();
         let opacity = psd_layer.opacity();
         let visible = psd_layer.visible();

@@ -333,3 +333,62 @@ fn test_cli_aseprite_to_png() {
     fs::remove_file(&aseprite_path).unwrap();
     fs::remove_file(&png_path).unwrap();
 }
+
+#[cfg(feature = "image")]
+#[test]
+fn test_layers_consistency() {
+    let data_dir = PathBuf::from("tests/data/layers");
+    let reference_png = data_dir.join("layers.png");
+
+    let test_files = vec!["layers.aseprite", "layers.psd"];
+
+    let expected_image = image::open(&reference_png)
+        .expect("Unable to open reference PNG")
+        .to_rgba8();
+
+    for file_name in test_files {
+        let input_path = data_dir.join(file_name);
+        let output_path = data_dir.join(format!("{}.actual.png", file_name));
+
+        if output_path.exists() {
+            fs::remove_file(&output_path).unwrap();
+        }
+
+        let status = Command::new("cargo")
+            .args([
+                "run",
+                "--features",
+                "image",
+                "--",
+                input_path.to_str().unwrap(),
+                output_path.to_str().unwrap(),
+            ])
+            .status()
+            .expect("Failed to execute command");
+
+        assert!(status.success(), "Conversion failed for {}", file_name);
+        assert!(output_path.exists());
+
+        let actual_image = image::open(&output_path)
+            .expect("Unable to open actual PNG")
+            .to_rgba8();
+
+        assert_eq!(
+            actual_image.dimensions(),
+            expected_image.dimensions(),
+            "Dimension mismatch for {}",
+            file_name
+        );
+
+        for (x, y, actual_pixel) in actual_image.enumerate_pixels() {
+            let expected_pixel = expected_image.get_pixel(x, y);
+            assert_eq!(
+                actual_pixel, expected_pixel,
+                "Pixel mismatch at ({}, {}) for {}",
+                x, y, file_name
+            );
+        }
+
+        fs::remove_file(&output_path).unwrap();
+    }
+}
