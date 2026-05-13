@@ -202,10 +202,18 @@ fn calculate_bounds(
                                         max_y = shifted_max_y;
                                     }
 
-                                    if sel_min_x < min_x { min_x = sel_min_x; }
-                                    if sel_max_x > max_x { max_x = sel_max_x; }
-                                    if top_down_min_y < min_y { min_y = top_down_min_y; }
-                                    if top_down_max_y > max_y { max_y = top_down_max_y; }
+                                    if sel_min_x < min_x { 
+                                        min_x = sel_min_x; 
+                                    }
+                                    if sel_max_x + 1 > max_x { 
+                                        max_x = sel_max_x + 1; 
+                                    }
+                                    if top_down_min_y < min_y { 
+                                        min_y = top_down_min_y; 
+                                    }
+                                    if top_down_max_y + 1 > max_y { 
+                                        max_y = top_down_max_y + 1; 
+                                    }
                                 }
                             }
                         } else {
