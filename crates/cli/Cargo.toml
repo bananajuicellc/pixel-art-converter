@@ -4,6 +4,7 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+psp-timelapse = { path = "../psp-timelapse" }
 clap = { version = "4.5.4", features = ["derive"] }
 pixel-art = { path = "../pixel-art" }
 pixaki-v2 = { path = "../pixaki-v2" }

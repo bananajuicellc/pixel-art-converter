@@ -7,6 +7,10 @@ use std::path::Path;
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
 struct Cli {
+    /// Extract a timelapse
+    #[arg(long)]
+    timelapse: bool,
+
     /// The path to the input file or directory (.pixaki, .psp, .psd, .ase, .aseprite)
     input_path: std::path::PathBuf,
 
@@ -24,7 +28,7 @@ fn main() -> Result<()> {
             .and_then(|e| e.to_str())
             .is_some_and(|ext| ext.eq_ignore_ascii_case("psp"))
     {
-        handle_psp_format(&cli.input_path)?
+        handle_psp_format(&cli.input_path, cli.timelapse)?
     } else if cli.input_path.is_file()
         && cli
             .input_path
@@ -116,12 +120,16 @@ fn handle_legacy_format(pixaki_path: &Path) -> Result<pixel_art::Document> {
     pixaki_v2_converter::convert(doc_v2, pixaki_path)
 }
 
-fn handle_psp_format(psp_path: &Path) -> Result<pixel_art::Document> {
+fn handle_psp_format(psp_path: &Path, is_timelapse: bool) -> Result<pixel_art::Document> {
     let json_str = fs::read_to_string(psp_path)?;
     let doc_psp: pixel_studio_pro_v2::Document =
         serde_json::from_str(&json_str).context("Unable to parse .psp JSON document")?;
 
-    pixel_studio_pro_v2_converter::convert(doc_psp)
+    if is_timelapse {
+        psp_timelapse::create_timelapse(doc_psp)
+    } else {
+        pixel_studio_pro_v2_converter::convert(doc_psp)
+    }
 }
 
 fn handle_psd_format(psd_path: &Path) -> Result<pixel_art::Document> {

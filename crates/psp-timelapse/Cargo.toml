@@ -1,0 +1,13 @@
+[package]
+name = "psp-timelapse"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+pixel-art = { path = "../pixel-art" }
+pixel-studio-pro-v2 = { path = "../pixel-studio-pro-v2" }
+pixel-studio-pro-v2-converter = { path = "../pixel-studio-pro-v2-converter" }
+image = "0.25.10"
+base64 = "0.22.1"
+serde_json = "1.0.149"
+anyhow = "1.0.102"

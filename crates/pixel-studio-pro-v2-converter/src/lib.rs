@@ -97,7 +97,7 @@ fn update_bounds_from_positions(
     }
 }
 
-fn calculate_bounds(
+pub fn calculate_bounds(
     history: &History,
     doc_width: u32,
     doc_height: u32,
@@ -279,7 +279,7 @@ fn calculate_bounds(
     (min_x, min_y, max_x, max_y, source_img_opt)
 }
 
-fn apply_positions_to_image(
+pub fn apply_positions_to_image(
     tool_type: pixel_studio_pro_v2::Tool,
     action: &pixel_studio_pro_v2::Action,
     final_img: &mut RgbaImage,
@@ -359,7 +359,7 @@ fn apply_positions_to_image(
     }
 }
 
-fn apply_move_action(
+pub fn apply_move_action(
     action: &pixel_studio_pro_v2::Action,
     final_img: &mut RgbaImage,
     min_x: i32,
@@ -432,7 +432,7 @@ fn apply_move_action(
     }
 }
 
-fn apply_paste_import_action(
+pub fn apply_paste_import_action(
     tool_type: pixel_studio_pro_v2::Tool,
     action: &pixel_studio_pro_v2::Action,
     final_img: &mut RgbaImage,
@@ -497,7 +497,7 @@ fn apply_paste_import_action(
     }
 }
 
-fn apply_transform_action(
+pub fn apply_transform_action(
     tool_type: pixel_studio_pro_v2::Tool,
     action: &pixel_studio_pro_v2::Action,
     final_img: &mut RgbaImage,
@@ -753,7 +753,7 @@ fn get_rotate_rect_info(
     })
 }
 
-fn apply_rotate_rect_action(
+pub fn apply_rotate_rect_action(
     action: &pixel_studio_pro_v2::Action,
     final_img: &mut RgbaImage,
     min_x: i32,
@@ -864,7 +864,7 @@ fn apply_rotate_rect_action(
     }
 }
 
-fn apply_replace_color_action(
+pub fn apply_replace_color_action(
     action: &pixel_studio_pro_v2::Action,
     final_img: &mut RgbaImage,
     min_x: i32,
