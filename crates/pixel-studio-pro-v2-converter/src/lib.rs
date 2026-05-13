@@ -488,10 +488,15 @@ fn apply_move_action(
                     if canvas_x >= 0 && canvas_y >= 0 && (canvas_x as u32) < img_width && (canvas_y as u32) < img_height {
                         let p = *final_img.get_pixel(canvas_x as u32, canvas_y as u32);
                         moved_pixels.push((px, py, p));
-                        final_img.put_pixel(canvas_x as u32, canvas_y as u32, Rgba([0, 0, 0, 0]));
-                        *has_data = true;
                     }
                 }
+            }
+
+            for (px, py, _) in &moved_pixels {
+                let canvas_x = px - min_x;
+                let canvas_y = py - min_y;
+                final_img.put_pixel(canvas_x as u32, canvas_y as u32, Rgba([0, 0, 0, 0]));
+                *has_data = true;
             }
 
             for (px, py, p) in moved_pixels {
