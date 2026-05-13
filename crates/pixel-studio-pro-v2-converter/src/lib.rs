@@ -224,15 +224,31 @@ fn calculate_bounds(
                                     let shifted_x = px + dx;
                                     let shifted_y = py + dy;
 
-                                    if px < min_x { min_x = px; }
-                                    if px > max_x { max_x = px; }
-                                    if py < min_y { min_y = py; }
-                                    if py > max_y { max_y = py; }
+                                    if px < min_x { 
+                                        min_x = px; 
+                                    }
+                                    if px + 1 > max_x { 
+                                        max_x = px + 1; 
+                                    }
+                                    if py < min_y { 
+                                        min_y = py; 
+                                    }
+                                    if py + 1 > max_y { 
+                                        max_y = py + 1; 
+                                    }
 
-                                    if shifted_x < min_x { min_x = shifted_x; }
-                                    if shifted_x > max_x { max_x = shifted_x; }
-                                    if shifted_y < min_y { min_y = shifted_y; }
-                                    if shifted_y > max_y { max_y = shifted_y; }
+                                    if shifted_x < min_x { 
+                                        min_x = shifted_x; 
+                                    }
+                                    if shifted_x + 1 > max_x { 
+                                        max_x = shifted_x + 1; 
+                                    }
+                                    if shifted_y < min_y { 
+                                        min_y = shifted_y; 
+                                    }
+                                    if shifted_y + 1 > max_y { 
+                                        max_y = shifted_y + 1; 
+                                    }
                                 }
                             }
                         }
