@@ -11,6 +11,7 @@ pub struct Document {
 #[cfg(feature = "image")]
 impl Document {
     pub fn render(&self) -> image::RgbaImage {
+        use image::Pixel;
         let mut base = image::RgbaImage::new(self.width as u32, self.height as u32);
         if self.frames.is_empty() {
             return base;
@@ -19,12 +20,7 @@ impl Document {
         // Collect all cels for frame 0
         let mut frame_cels: Vec<&Cel> = self.cels.iter().filter(|c| c.frame_index == 0).collect();
 
-        // Sort cels by layer index (assuming lower index is bottom layer or vice versa, typically we render bottom-up)
-        // Let's assume layer index 0 is bottom, and higher is on top. If needed, reverse.
-        // Usually, layers are stored bottom-to-top or top-to-bottom. We'll sort by layer_index, assuming 0 is bottom.
-        // Actually, typical formats might vary. Aseprite usually stores layers bottom-to-top.
-        // We will render in order of layer index ascending, or according to how layers are defined.
-        // Let's sort by layer index ascending.
+        // Sort cels by layer index ascending (assuming index 0 is the bottom layer, so we render from back to front)
         frame_cels.sort_by_key(|c| c.layer_index);
 
         for cel in frame_cels {
@@ -43,9 +39,7 @@ impl Document {
 
             let cel_img: image::RgbaImage = image.clone().into();
 
-            // Note: simple alpha blending via overlay. Opacity/blend modes are complex to implement fully,
-            // but we can apply basic overlay which handles alpha. Layer opacity is ignored in this simple
-            // implementation, unless we manually modulate the alpha channel of cel_img first.
+            // Apply layer opacity
             let mut cel_img_modulated = cel_img;
             if layer.opacity < 255 {
                 for pixel in cel_img_modulated.pixels_mut() {
@@ -53,7 +47,16 @@ impl Document {
                 }
             }
 
-            image::imageops::overlay(&mut base, &cel_img_modulated, cel.x as i64, cel.y as i64);
+            // Perform alpha blending manually as imageops::overlay just copies pixels
+            for (x, y, p) in cel_img_modulated.enumerate_pixels() {
+                let dst_x = cel.x as i32 + x as i32;
+                let dst_y = cel.y as i32 + y as i32;
+                if dst_x >= 0 && dst_y >= 0 && (dst_x as u32) < self.width as u32 && (dst_y as u32) < self.height as u32 {
+                    let mut dst_p = *base.get_pixel(dst_x as u32, dst_y as u32);
+                    dst_p.blend(p);
+                    base.put_pixel(dst_x as u32, dst_y as u32, dst_p);
+                }
+            }
         }
 
         base
@@ -72,6 +75,7 @@ impl Document {
 
         let mut frame_cels: Vec<&Cel> = self.cels.iter().filter(|c| c.frame_index == 0).collect();
 
+        // Sort cels by layer index ascending (assuming index 0 is the bottom layer)
         frame_cels.sort_by_key(|c| c.layer_index);
 
         for cel in frame_cels {
