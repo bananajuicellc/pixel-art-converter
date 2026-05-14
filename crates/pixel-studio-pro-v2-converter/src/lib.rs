@@ -1200,8 +1200,7 @@ fn convert_timelapse(doc: pixel_studio_pro_v2::Document) -> Result<Document> {
                 let mut final_img = RgbaImage::new(img_width, img_height);
 
                 let replay_count = std::cmp::min(history.index as usize, history.actions.len());
-                if replay_count == 0 && source_img_opt.is_some() {
-                    let src_img = source_img_opt.unwrap();
+                if let Some(src_img) = source_img_opt.filter(|_| replay_count == 0) {
                     let offset_x = -min_x;
                     let offset_y = -min_y;
                     for y in 0..src_img.height() {
@@ -1247,7 +1246,6 @@ fn convert_timelapse(doc: pixel_studio_pro_v2::Document) -> Result<Document> {
                         }
                     }
                 } else {
-                    let replay_count = std::cmp::min(history.index as usize, history.actions.len());
                     for action in history.actions.iter().take(replay_count) {
                         let mut has_data = false;
                         if let Ok(tool_type) = pixel_studio_pro_v2::Tool::try_from(action.tool) {
