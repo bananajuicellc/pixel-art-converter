@@ -163,13 +163,9 @@ fn calculate_bounds(
                     let pos_bytes = b64.decode(&action.positions).unwrap_or_default();
                     if pos_bytes.len() >= 8 {
                         let px1 = i16::from_le_bytes([pos_bytes[0], pos_bytes[1]]) as i32;
-                        let py1 = doc_height as i32
-                            - 1
-                            - i16::from_le_bytes([pos_bytes[2], pos_bytes[3]]) as i32;
+                        let py1 = i16::from_le_bytes([pos_bytes[2], pos_bytes[3]]) as i32;
                         let px2 = i16::from_le_bytes([pos_bytes[4], pos_bytes[5]]) as i32;
-                        let py2 = doc_height as i32
-                            - 1
-                            - i16::from_le_bytes([pos_bytes[6], pos_bytes[7]]) as i32;
+                        let py2 = i16::from_le_bytes([pos_bytes[6], pos_bytes[7]]) as i32;
                         let dx = px2 - px1;
                         let dy = py2 - py1;
 
@@ -181,13 +177,10 @@ fn calculate_bounds(
                                     let sel_min_y = from.y.min(to.y);
                                     let sel_max_y = from.y.max(to.y);
 
-                                    let top_down_min_y = doc_height as i32 - 1 - sel_max_y;
-                                    let top_down_max_y = doc_height as i32 - 1 - sel_min_y;
-
                                     let shifted_min_x = sel_min_x + dx;
                                     let shifted_max_x = sel_max_x + dx;
-                                    let shifted_min_y = top_down_min_y + dy;
-                                    let shifted_max_y = top_down_max_y + dy;
+                                    let shifted_min_y = sel_min_y - dy;
+                                    let shifted_max_y = sel_max_y - dy;
 
                                     if shifted_min_x < min_x {
                                         min_x = shifted_min_x;
@@ -279,9 +272,8 @@ fn calculate_bounds(
                                     if let Ok(img) = image::load_from_memory(&img_data) {
                                         let dst_min_x = rect.from.x;
                                         let dst_max_x = rect.from.x + img.width() as i32;
-                                        // Y is inverted (bottom-up in .psp files)
-                                        let dst_max_y = doc_height as i32 - rect.from.y;
-                                        let dst_min_y = dst_max_y - img.height() as i32;
+                                        let dst_min_y = rect.from.y;
+                                        let dst_max_y = dst_min_y + img.height() as i32;
                                         if dst_min_x < min_x {
                                             min_x = dst_min_x;
                                         }
@@ -327,6 +319,9 @@ fn calculate_bounds(
     (min_x, min_y, max_x, max_y, source_img_opt)
 }
 
+#[allow(unused_variables)]
+#[allow(unused_variables)]
+#[allow(unused_variables)]
 fn apply_positions_to_image(
     tool_type: pixel_studio_pro_v2::Tool,
     action: &pixel_studio_pro_v2::Action,
@@ -530,8 +525,7 @@ fn apply_paste_import_action(
                     if let Ok(img) = image::load_from_memory(&img_data) {
                         let rgba_patch = img.to_rgba8();
                         let start_x = rect.from.x - min_x;
-                        let start_y =
-                            (doc_height as i32 - rect.from.y - rgba_patch.height() as i32) - min_y;
+                        let start_y = (doc_height as i32 - rect.from.y - rgba_patch.height() as i32) - min_y;
 
                         for y in 0..rgba_patch.height() {
                             for x in 0..rgba_patch.width() {
@@ -803,8 +797,8 @@ fn get_rotate_rect_info(
         }
     }
 
-    let offset_x = px3 - rect_min_x;
-    let offset_y = py3 - rect_min_y;
+    let offset_x = px3;
+    let offset_y = -py3;
 
     let final_min_x = min_rx.floor() as i32 + rect_min_x + offset_x;
     let final_min_y = min_ry.floor() as i32 + rect_min_y + offset_y;
