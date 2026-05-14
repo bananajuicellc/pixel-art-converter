@@ -42,7 +42,9 @@ fn main() -> Result<()> {
             .input_path
             .extension()
             .and_then(|e| e.to_str())
-            .is_some_and(|ext| ext.eq_ignore_ascii_case("ase") || ext.eq_ignore_ascii_case("aseprite"))
+            .is_some_and(|ext| {
+                ext.eq_ignore_ascii_case("ase") || ext.eq_ignore_ascii_case("aseprite")
+            })
     {
         handle_aseprite_format(&cli.input_path)?
     } else if cli.input_path.join("document.json").exists() {
@@ -135,7 +137,7 @@ fn handle_psd_format(psd_path: &Path) -> Result<pixel_art::Document> {
 
 fn handle_aseprite_format(ase_path: &Path) -> Result<pixel_art::Document> {
     let file = fs::File::open(ase_path)?;
-    let aseprite_file = aseprite::AsepriteFile::from_reader(file)
-        .context("Failed to parse .aseprite file")?;
+    let aseprite_file =
+        aseprite::AsepriteFile::from_reader(file).context("Failed to parse .aseprite file")?;
     aseprite_converter::reader::parse(aseprite_file)
 }

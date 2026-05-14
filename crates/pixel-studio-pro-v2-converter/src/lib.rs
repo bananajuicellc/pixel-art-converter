@@ -195,11 +195,11 @@ fn calculate_bounds(
                                         max_y = shifted_max_y + 1;
                                     }
 
-                                    if sel_min_x < min_x { 
-                                        min_x = sel_min_x; 
+                                    if sel_min_x < min_x {
+                                        min_x = sel_min_x;
                                     }
-                                    if sel_max_x + 1 > max_x { 
-                                        max_x = sel_max_x + 1; 
+                                    if sel_max_x + 1 > max_x {
+                                        max_x = sel_max_x + 1;
                                     }
                                     if sel_min_y < min_y {
                                         min_y = sel_min_y;
@@ -212,35 +212,39 @@ fn calculate_bounds(
                         } else {
                             for j in (8..pos_bytes.len()).step_by(4) {
                                 if j + 3 < pos_bytes.len() {
-                                    let px = i16::from_le_bytes([pos_bytes[j], pos_bytes[j + 1]]) as i32;
-                                    let py = doc_height as i32 - 1 - i16::from_le_bytes([pos_bytes[j + 2], pos_bytes[j + 3]]) as i32;
+                                    let px =
+                                        i16::from_le_bytes([pos_bytes[j], pos_bytes[j + 1]]) as i32;
+                                    let py = doc_height as i32
+                                        - 1
+                                        - i16::from_le_bytes([pos_bytes[j + 2], pos_bytes[j + 3]])
+                                            as i32;
                                     let shifted_x = px + dx;
                                     let shifted_y = py + dy;
 
-                                    if px < min_x { 
-                                        min_x = px; 
+                                    if px < min_x {
+                                        min_x = px;
                                     }
-                                    if px + 1 > max_x { 
-                                        max_x = px + 1; 
+                                    if px + 1 > max_x {
+                                        max_x = px + 1;
                                     }
-                                    if py < min_y { 
-                                        min_y = py; 
+                                    if py < min_y {
+                                        min_y = py;
                                     }
-                                    if py + 1 > max_y { 
-                                        max_y = py + 1; 
+                                    if py + 1 > max_y {
+                                        max_y = py + 1;
                                     }
 
-                                    if shifted_x < min_x { 
-                                        min_x = shifted_x; 
+                                    if shifted_x < min_x {
+                                        min_x = shifted_x;
                                     }
-                                    if shifted_x + 1 > max_x { 
-                                        max_x = shifted_x + 1; 
+                                    if shifted_x + 1 > max_x {
+                                        max_x = shifted_x + 1;
                                     }
-                                    if shifted_y < min_y { 
-                                        min_y = shifted_y; 
+                                    if shifted_y < min_y {
+                                        min_y = shifted_y;
                                     }
-                                    if shifted_y + 1 > max_y { 
-                                        max_y = shifted_y + 1; 
+                                    if shifted_y + 1 > max_y {
+                                        max_y = shifted_y + 1;
                                     }
                                 }
                             }
@@ -476,11 +480,17 @@ fn apply_move_action(
             for j in (8..pos_bytes.len()).step_by(4) {
                 if j + 3 < pos_bytes.len() {
                     let px = i16::from_le_bytes([pos_bytes[j], pos_bytes[j + 1]]) as i32;
-                    let py = doc_height as i32 - 1 - i16::from_le_bytes([pos_bytes[j + 2], pos_bytes[j + 3]]) as i32;
+                    let py = doc_height as i32
+                        - 1
+                        - i16::from_le_bytes([pos_bytes[j + 2], pos_bytes[j + 3]]) as i32;
 
                     let canvas_x = px - min_x;
                     let canvas_y = py - min_y;
-                    if canvas_x >= 0 && canvas_y >= 0 && (canvas_x as u32) < img_width && (canvas_y as u32) < img_height {
+                    if canvas_x >= 0
+                        && canvas_y >= 0
+                        && (canvas_x as u32) < img_width
+                        && (canvas_y as u32) < img_height
+                    {
                         let p = *final_img.get_pixel(canvas_x as u32, canvas_y as u32);
                         moved_pixels.push((px, py, p));
                     }
@@ -498,7 +508,11 @@ fn apply_move_action(
                 let shifted_x = px + dx - min_x;
                 let shifted_y = py + dy - min_y;
 
-                if shifted_x >= 0 && shifted_y >= 0 && (shifted_x as u32) < img_width && (shifted_y as u32) < img_height {
+                if shifted_x >= 0
+                    && shifted_y >= 0
+                    && (shifted_x as u32) < img_width
+                    && (shifted_y as u32) < img_height
+                {
                     final_img.put_pixel(shifted_x as u32, shifted_y as u32, p);
                     *has_data = true;
                 }
@@ -525,7 +539,8 @@ fn apply_paste_import_action(
                     if let Ok(img) = image::load_from_memory(&img_data) {
                         let rgba_patch = img.to_rgba8();
                         let start_x = rect.from.x - min_x;
-                        let start_y = (doc_height as i32 - rect.from.y - rgba_patch.height() as i32) - min_y;
+                        let start_y =
+                            (doc_height as i32 - rect.from.y - rgba_patch.height() as i32) - min_y;
 
                         for y in 0..rgba_patch.height() {
                             for x in 0..rgba_patch.width() {
@@ -1131,7 +1146,6 @@ fn replay_actions(
     (final_img, has_data)
 }
 
-
 fn convert_timelapse(doc: pixel_studio_pro_v2::Document) -> Result<Document> {
     let mut layers: Vec<Layer> = Vec::new();
     let mut frames: Vec<Frame> = Vec::new();
@@ -1236,9 +1250,37 @@ fn convert_timelapse(doc: pixel_studio_pro_v2::Document) -> Result<Document> {
                         let mut has_data = false;
                         if let Ok(tool_type) = pixel_studio_pro_v2::Tool::try_from(action.tool) {
                             match tool_type {
-                                pixel_studio_pro_v2::Tool::Move => apply_move_action(action, &mut final_img, min_x, min_y, img_width, img_height, doc_height, &mut has_data),
-                                pixel_studio_pro_v2::Tool::RotateRect => apply_rotate_rect_action(action, &mut final_img, min_x, min_y, img_width, img_height, doc_height, &mut has_data),
-                                pixel_studio_pro_v2::Tool::PasteImage => apply_paste_import_action(tool_type, action, &mut final_img, min_x, min_y, img_width, img_height, doc_height, &mut has_data),
+                                pixel_studio_pro_v2::Tool::Move => apply_move_action(
+                                    action,
+                                    &mut final_img,
+                                    min_x,
+                                    min_y,
+                                    img_width,
+                                    img_height,
+                                    doc_height,
+                                    &mut has_data,
+                                ),
+                                pixel_studio_pro_v2::Tool::RotateRect => apply_rotate_rect_action(
+                                    action,
+                                    &mut final_img,
+                                    min_x,
+                                    min_y,
+                                    img_width,
+                                    img_height,
+                                    doc_height,
+                                    &mut has_data,
+                                ),
+                                pixel_studio_pro_v2::Tool::PasteImage => apply_paste_import_action(
+                                    tool_type,
+                                    action,
+                                    &mut final_img,
+                                    min_x,
+                                    min_y,
+                                    img_width,
+                                    img_height,
+                                    doc_height,
+                                    &mut has_data,
+                                ),
                                 pixel_studio_pro_v2::Tool::Pen
                                 | pixel_studio_pro_v2::Tool::DotPen
                                 | pixel_studio_pro_v2::Tool::DitheringPen
@@ -1248,17 +1290,45 @@ fn convert_timelapse(doc: pixel_studio_pro_v2::Document) -> Result<Document> {
                                 | pixel_studio_pro_v2::Tool::Eraser
                                 | pixel_studio_pro_v2::Tool::Clear
                                 | pixel_studio_pro_v2::Tool::EraserPen
-                                | pixel_studio_pro_v2::Tool::Cut => apply_positions_to_image(tool_type, action, &mut final_img, min_x, min_y, img_width, img_height, doc_height, &mut has_data),
+                                | pixel_studio_pro_v2::Tool::Cut => apply_positions_to_image(
+                                    tool_type,
+                                    action,
+                                    &mut final_img,
+                                    min_x,
+                                    min_y,
+                                    img_width,
+                                    img_height,
+                                    doc_height,
+                                    &mut has_data,
+                                ),
                                 pixel_studio_pro_v2::Tool::MirrorByX
                                 | pixel_studio_pro_v2::Tool::MirrorByY
                                 | pixel_studio_pro_v2::Tool::FlipByX
                                 | pixel_studio_pro_v2::Tool::FlipByY
                                 | pixel_studio_pro_v2::Tool::RotateLeft
-                                | pixel_studio_pro_v2::Tool::RotateRight => apply_transform_action(tool_type, action, &mut final_img, min_x, min_y, img_width, img_height, doc_height, &mut has_data),
+                                | pixel_studio_pro_v2::Tool::RotateRight => apply_transform_action(
+                                    tool_type,
+                                    action,
+                                    &mut final_img,
+                                    min_x,
+                                    min_y,
+                                    img_width,
+                                    img_height,
+                                    doc_height,
+                                    &mut has_data,
+                                ),
                                 pixel_studio_pro_v2::Tool::ReplaceColor => {
-                                    apply_replace_color_action(action, &mut final_img, min_x, min_y, img_width, img_height, doc_height);
+                                    apply_replace_color_action(
+                                        action,
+                                        &mut final_img,
+                                        min_x,
+                                        min_y,
+                                        img_width,
+                                        img_height,
+                                        doc_height,
+                                    );
                                     has_data = true; // Assume replace color modifies data if present
-                                },
+                                }
                                 _ => {}
                             }
                         }
@@ -1274,8 +1344,10 @@ fn convert_timelapse(doc: pixel_studio_pro_v2::Document) -> Result<Document> {
                             let cel = Cel {
                                 frame_index: frames.len(),
                                 layer_index,
-                                x: (psp_layer.sx + min_x).clamp(i16::MIN as i32, i16::MAX as i32) as i16,
-                                y: (psp_layer.sy + min_y).clamp(i16::MIN as i32, i16::MAX as i32) as i16,
+                                x: (psp_layer.sx + min_x).clamp(i16::MIN as i32, i16::MAX as i32)
+                                    as i16,
+                                y: (psp_layer.sy + min_y).clamp(i16::MIN as i32, i16::MAX as i32)
+                                    as i16,
                                 image_index,
                             };
 
@@ -1308,7 +1380,6 @@ fn convert_timelapse(doc: pixel_studio_pro_v2::Document) -> Result<Document> {
         images,
     })
 }
-
 
 pub fn convert(doc: pixel_studio_pro_v2::Document, timelapse: bool) -> Result<Document> {
     if timelapse {
