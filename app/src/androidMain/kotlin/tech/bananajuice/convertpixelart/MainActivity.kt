@@ -1,10 +1,9 @@
-#!/bin/bash
-cat << 'INNER_EOF' > app/src/androidMain/kotlin/com/example/convertpixelart/MainActivity.kt
-package com.example.convertpixelart
+package tech.bananajuice.convertpixelart
 
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -16,6 +15,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.core.content.FileProvider
 import kotlinx.coroutines.Dispatchers
@@ -31,11 +31,16 @@ class MainActivity : ComponentActivity() {
 
         // Handle incoming intent if it was started from "Share"
         val initialUri = if (intent?.action == Intent.ACTION_SEND) {
-            intent.getParcelableExtra<Uri>(Intent.EXTRA_STREAM)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                intent.getParcelableExtra(Intent.EXTRA_STREAM, Uri::class.java)
+            } else {
+                @Suppress("DEPRECATION")
+                intent.getParcelableExtra(Intent.EXTRA_STREAM)
+            }
         } else null
 
         setContent {
-            com.example.convertpixelart.ui.theme.ConvertPixelArtTheme {
+            tech.bananajuice.convertpixelart.ui.theme.ConvertPixelArtTheme {
                 Surface(
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
@@ -77,18 +82,18 @@ fun ConverterScreen(initialUri: Uri?) {
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        Text("Convert Pixel Art", style = MaterialTheme.typography.headlineMedium)
+        Text(stringResource(id = context.resources.getIdentifier("app_name", "string", context.packageName)), style = MaterialTheme.typography.headlineMedium)
 
         Button(onClick = { filePickerLauncher.launch(arrayOf("*/*")) }) {
-            Text("Select Input File")
+            Text(stringResource(id = context.resources.getIdentifier("select_input_file", "string", context.packageName)))
         }
 
         if (selectedUri != null) {
-            Text("Selected File: ${selectedUri?.lastPathSegment ?: "Unknown"}")
+            Text(stringResource(id = context.resources.getIdentifier("selected_file_label", "string", context.packageName)) + " " + (selectedUri?.lastPathSegment ?: "Unknown"))
         }
 
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text("Output Format: ")
+            Text(stringResource(id = context.resources.getIdentifier("output_format_label", "string", context.packageName)))
             var expanded by remember { mutableStateOf(false) }
             ExposedDropdownMenuBox(
                 expanded = expanded,
@@ -123,14 +128,14 @@ fun ConverterScreen(initialUri: Uri?) {
                 checked = extractTimelapse,
                 onCheckedChange = { extractTimelapse = it }
             )
-            Text("Extract Timelapse (for supported formats like .psp)")
+            Text(stringResource(id = context.resources.getIdentifier("extract_timelapse_label", "string", context.packageName)))
         }
 
         Button(
             onClick = {
                 selectedUri?.let { uri ->
                     isConverting = true
-                    conversionStatus = "Converting..."
+                    conversionStatus = context.getString(context.resources.getIdentifier("converting_status", "string", context.packageName))
                     outputFilePath = null
 
                     coroutineScope.launch {
@@ -138,7 +143,7 @@ fun ConverterScreen(initialUri: Uri?) {
                         isConverting = false
                         if (result.startsWith("Success|")) {
                             outputFilePath = result.split("|")[1]
-                            conversionStatus = "Conversion successful!"
+                            conversionStatus = context.getString(context.resources.getIdentifier("conversion_success_status", "string", context.packageName))
                         } else {
                             conversionStatus = result
                         }
@@ -147,7 +152,7 @@ fun ConverterScreen(initialUri: Uri?) {
             },
             enabled = selectedUri != null && !isConverting
         ) {
-            Text("Convert")
+            Text(stringResource(id = context.resources.getIdentifier("convert_button", "string", context.packageName)))
         }
 
         if (isConverting) {
@@ -160,7 +165,7 @@ fun ConverterScreen(initialUri: Uri?) {
 
         if (outputFilePath != null) {
             Button(onClick = { shareFile(context, File(outputFilePath!!)) }) {
-                Text("Share / Save Output")
+                Text(stringResource(id = context.resources.getIdentifier("share_save_button", "string", context.packageName)))
             }
         }
     }
@@ -168,14 +173,12 @@ fun ConverterScreen(initialUri: Uri?) {
 
 suspend fun performConversion(context: Context, inputUri: Uri, outputFormat: String, timelapse: Boolean): String {
     return withContext(Dispatchers.IO) {
+        var inputStream: java.io.InputStream? = null
         try {
-            // Copy input to a temporary local file so Rust can read it by path
-            val inputStream = context.contentResolver.openInputStream(inputUri)
-                ?: return@withContext "Error: Cannot open input file"
+            inputStream = context.contentResolver.openInputStream(inputUri)
+            if (inputStream == null) return@withContext "Error: Cannot open input file"
 
             val cacheDir = context.cacheDir
-            val inputFileName = "temp_input" // In a real app we'd preserve extension to help the parser
-            // Try to extract original name to preserve extension
             var ext = ".tmp"
             context.contentResolver.query(inputUri, null, null, null, null)?.use { cursor ->
                 if (cursor.moveToFirst()) {
@@ -204,6 +207,11 @@ suspend fun performConversion(context: Context, inputUri: Uri, outputFormat: Str
                     var zipEntry = zis.nextEntry
                     while (zipEntry != null) {
                         val newFile = File(unzipDir, zipEntry.name)
+                        // Vulnerability Fix: Zip Slip
+                        if (!newFile.canonicalPath.startsWith(unzipDir.canonicalPath + File.separator)) {
+                            throw SecurityException("Entry is outside of the target dir: ${zipEntry.name}")
+                        }
+
                         if (zipEntry.isDirectory) {
                             newFile.mkdirs()
                         } else {
@@ -227,6 +235,8 @@ suspend fun performConversion(context: Context, inputUri: Uri, outputFormat: Str
             }
         } catch (e: Exception) {
             "Error: ${e.message}"
+        } finally {
+            inputStream?.close()
         }
     }
 }
@@ -244,4 +254,3 @@ fun shareFile(context: Context, file: File) {
     }
     context.startActivity(Intent.createChooser(intent, "Share output file"))
 }
-INNER_EOF

@@ -1,4 +1,4 @@
-package com.example.convertpixelart
+package tech.bananajuice.convertpixelart
 
 object RustInterop {
     init {

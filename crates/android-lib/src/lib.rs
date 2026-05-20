@@ -6,7 +6,7 @@ use anyhow::{Context, Result, anyhow};
 use std::fs;
 
 #[unsafe(no_mangle)]
-pub extern "system" fn Java_com_example_convertpixelart_RustInterop_convertFile<'local>(
+pub extern "system" fn Java_tech_bananajuice_convertpixelart_RustInterop_convertFile<'local>(
     mut env: JNIEnv<'local>,
     _class: JClass<'local>,
     input_path_j: JString<'local>,

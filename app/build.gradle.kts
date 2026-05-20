@@ -34,11 +34,11 @@ kotlin {
 }
 
 android {
-    namespace = "com.example.convertpixelart"
+    namespace = "tech.bananajuice.convertpixelart"
     compileSdk = 34
 
     defaultConfig {
-        applicationId = "com.example.convertpixelart"
+        applicationId = "tech.bananajuice.convertpixelart"
         minSdk = 24
         targetSdk = 34
         versionCode = 1

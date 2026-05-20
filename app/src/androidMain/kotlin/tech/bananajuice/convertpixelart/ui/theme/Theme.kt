@@ -1,4 +1,4 @@
-package com.example.convertpixelart.ui.theme
+package tech.bananajuice.convertpixelart.ui.theme
 
 import android.app.Activity
 import android.os.Build

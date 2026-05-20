@@ -1,3 +1,13 @@
 <resources>
     <string name="app_name">Convert Pixel Art</string>
+
+    <string name="select_input_file">Select Input File</string>
+    <string name="selected_file_label">Selected File:</string>
+    <string name="output_format_label">Output Format:</string>
+    <string name="extract_timelapse_label">Extract Timelapse (for supported formats like .psp)</string>
+    <string name="converting_status">Converting...</string>
+    <string name="conversion_success_status">Conversion successful!</string>
+    <string name="convert_button">Convert</string>
+    <string name="share_save_button">Share / Save Output</string>
+
 </resources>

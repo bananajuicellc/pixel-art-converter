@@ -1,4 +1,4 @@
-package com.example.convertpixelart.ui.theme
+package tech.bananajuice.convertpixelart.ui.theme
 
 import androidx.compose.ui.graphics.Color
 
