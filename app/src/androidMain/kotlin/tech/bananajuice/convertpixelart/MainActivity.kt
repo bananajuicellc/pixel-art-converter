@@ -24,6 +24,11 @@ import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.FileOutputStream
 
+sealed class ConversionResult {
+    data class Success(val filePath: String) : ConversionResult()
+    data class Error(val message: String) : ConversionResult()
+}
+
 class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -82,18 +87,18 @@ fun ConverterScreen(initialUri: Uri?) {
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        Text(stringResource(id = context.resources.getIdentifier("app_name", "string", context.packageName)), style = MaterialTheme.typography.headlineMedium)
+        Text(stringResource(id = R.string.app_name), style = MaterialTheme.typography.headlineMedium)
 
         Button(onClick = { filePickerLauncher.launch(arrayOf("*/*")) }) {
-            Text(stringResource(id = context.resources.getIdentifier("select_input_file", "string", context.packageName)))
+            Text(stringResource(id = R.string.select_input_file))
         }
 
         if (selectedUri != null) {
-            Text(stringResource(id = context.resources.getIdentifier("selected_file_label", "string", context.packageName)) + " " + (selectedUri?.lastPathSegment ?: "Unknown"))
+            Text(stringResource(id = R.string.selected_file_label) + " " + (selectedUri?.lastPathSegment ?: "Unknown"))
         }
 
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(stringResource(id = context.resources.getIdentifier("output_format_label", "string", context.packageName)))
+            Text(stringResource(id = R.string.output_format_label))
             var expanded by remember { mutableStateOf(false) }
             ExposedDropdownMenuBox(
                 expanded = expanded,
@@ -128,31 +133,34 @@ fun ConverterScreen(initialUri: Uri?) {
                 checked = extractTimelapse,
                 onCheckedChange = { extractTimelapse = it }
             )
-            Text(stringResource(id = context.resources.getIdentifier("extract_timelapse_label", "string", context.packageName)))
+            Text(stringResource(id = R.string.extract_timelapse_label))
         }
 
         Button(
             onClick = {
                 selectedUri?.let { uri ->
                     isConverting = true
-                    conversionStatus = context.getString(context.resources.getIdentifier("converting_status", "string", context.packageName))
+                    conversionStatus = context.getString(R.string.converting_status)
                     outputFilePath = null
 
                     coroutineScope.launch {
                         val result = performConversion(context, uri, selectedFormat, extractTimelapse)
                         isConverting = false
-                        if (result.startsWith("Success|")) {
-                            outputFilePath = result.split("|")[1]
-                            conversionStatus = context.getString(context.resources.getIdentifier("conversion_success_status", "string", context.packageName))
-                        } else {
-                            conversionStatus = result
+                        when (result) {
+                            is ConversionResult.Success -> {
+                                outputFilePath = result.filePath
+                                conversionStatus = context.getString(R.string.conversion_success_status)
+                            }
+                            is ConversionResult.Error -> {
+                                conversionStatus = result.message
+                            }
                         }
                     }
                 }
             },
             enabled = selectedUri != null && !isConverting
         ) {
-            Text(stringResource(id = context.resources.getIdentifier("convert_button", "string", context.packageName)))
+            Text(stringResource(id = R.string.convert_button))
         }
 
         if (isConverting) {
@@ -165,20 +173,23 @@ fun ConverterScreen(initialUri: Uri?) {
 
         if (outputFilePath != null) {
             Button(onClick = { shareFile(context, File(outputFilePath!!)) }) {
-                Text(stringResource(id = context.resources.getIdentifier("share_save_button", "string", context.packageName)))
+                Text(stringResource(id = R.string.share_save_button))
             }
         }
     }
 }
 
-suspend fun performConversion(context: Context, inputUri: Uri, outputFormat: String, timelapse: Boolean): String {
+suspend fun performConversion(context: Context, inputUri: Uri, outputFormat: String, timelapse: Boolean): ConversionResult {
     return withContext(Dispatchers.IO) {
         var inputStream: java.io.InputStream? = null
+        var tempInputFile: File? = null
+        var tempOutputFile: File? = null
+        var unzipDir: File? = null
+
         try {
             inputStream = context.contentResolver.openInputStream(inputUri)
-            if (inputStream == null) return@withContext "Error: Cannot open input file"
+            if (inputStream == null) return@withContext ConversionResult.Error("Error: Cannot open input file")
 
-            val cacheDir = context.cacheDir
             var ext = ".tmp"
             context.contentResolver.query(inputUri, null, null, null, null)?.use { cursor ->
                 if (cursor.moveToFirst()) {
@@ -192,16 +203,16 @@ suspend fun performConversion(context: Context, inputUri: Uri, outputFormat: Str
                 }
             }
 
-            val tempInputFile = File(cacheDir, "temp_input$ext")
+            tempInputFile = File.createTempFile("temp_input", ext, context.cacheDir)
             FileOutputStream(tempInputFile).use { outputStream ->
                 inputStream.copyTo(outputStream)
             }
 
-            val tempOutputFile = File(cacheDir, "output$outputFormat")
+            tempOutputFile = File.createTempFile("output", outputFormat, context.cacheDir)
 
             if (ext.equals(".pixaki", ignoreCase = true)) {
-                val unzipDir = File(cacheDir, "temp_input_pixaki_dir")
-                unzipDir.deleteRecursively()
+                unzipDir = File.createTempFile("temp_input_pixaki_dir", "", context.cacheDir)
+                unzipDir.delete() // remove file so we can recreate it as dir
                 unzipDir.mkdirs()
                 java.util.zip.ZipInputStream(java.io.FileInputStream(tempInputFile)).use { zis ->
                     var zipEntry = zis.nextEntry
@@ -222,21 +233,25 @@ suspend fun performConversion(context: Context, inputUri: Uri, outputFormat: Str
                     }
                     zis.closeEntry()
                 }
-                val result = RustInterop.convertFile(unzipDir.absolutePath, tempOutputFile.absolutePath, timelapse)
-                return@withContext if (result == "Success") "Success|${tempOutputFile.absolutePath}" else result
+                val rustResult = RustInterop.convertFile(unzipDir.absolutePath, tempOutputFile.absolutePath, timelapse)
+                return@withContext if (rustResult == "Success") ConversionResult.Success(tempOutputFile.absolutePath) else ConversionResult.Error(rustResult)
             }
 
-            val result = RustInterop.convertFile(tempInputFile.absolutePath, tempOutputFile.absolutePath, timelapse)
+            val rustResult = RustInterop.convertFile(tempInputFile.absolutePath, tempOutputFile.absolutePath, timelapse)
 
-            if (result == "Success") {
-                "Success|${tempOutputFile.absolutePath}"
+            if (rustResult == "Success") {
+                return@withContext ConversionResult.Success(tempOutputFile.absolutePath)
             } else {
-                result
+                return@withContext ConversionResult.Error(rustResult)
             }
         } catch (e: Exception) {
-            "Error: ${e.message}"
+            return@withContext ConversionResult.Error("Error: ${e.message}")
         } finally {
             inputStream?.close()
+            tempInputFile?.delete()
+            unzipDir?.deleteRecursively()
+            // We intentionally do NOT delete tempOutputFile here if successful,
+            // because it needs to be accessed by the user (shared/saved).
         }
     }
 }
